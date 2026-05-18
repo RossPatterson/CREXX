@@ -25,6 +25,12 @@
 #ifndef CREXX_CREXXSAA_H
 #define CREXX_CREXXSAA_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 16
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include <stddef.h>
 
 #define CREXXSAA_ABI_VERSION 2

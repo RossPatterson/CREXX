@@ -1,16 +1,16 @@
-#!/bin/sh
+#!/usr/bin/bash
 # Install CREXX on CMS
 
 # Exit if there is an error
-set -e
+set -euo pipefail
 
 # IPL
 herccontrol -v
-herccontrol "ipl 141" -w "USER DSC LOGOFF AS AUTOLOG1"
+herccontrol "ipl 6A1" -w "USER DSC LOGOFF AS AUTOLOG1"
 
-# LOGON MAINT AND READ TAPE
+# Logon MAINT and read tape
 herccontrol "/cp disc" -w "^VM/370 Online"
-herccontrol "/logon maint cpcms" -w "^CMS VERSION"
+herccontrol "/logon maint cpcms" -w "^VM Community Edition"
 herccontrol "/" -w "^Ready;"
 herccontrol "devinit 480 io/crexxbin.aws" -w "^HHCPN098I"
 herccontrol "/attach 480 to maint as 181" -w "TAPE 480 ATTACH TO MAINT"
@@ -19,21 +19,21 @@ herccontrol "/tape load * * c2" -w "^Ready;"
 # herccontrol "/rename rxas module c1 = = c2"  -w "^Ready;"
 herccontrol "/detach 181" -w "^Ready;"
 herccontrol "/release c"  -w "^Ready;"
-herccontrol "/ipl 190" -w "^CMS VERSION"
-herccontrol "/savesys cms" -w "^CMS VERSION"
+herccontrol "/ipl 190" -w "^VM Community Edition"
+herccontrol "/savesys cms" -w "^VM Community Edition"
 herccontrol "/" -w "^Ready;"
 herccontrol "/logoff" -w "^VM/370 Online"
 
-# LOGON maintc
-herccontrol "/logon maintc maintc" -w "^CMS VERSION"
+# Logon MAINTC
+herccontrol "/logon maintc maintc" -w "^VM Community Edition"
 herccontrol "/" -w "^Ready;"
 
 # Sanity test
 herccontrol "/rxas -v" -w "^Ready;"
 
-# LOGOFF
+# Logoff
 herccontrol "/logoff" -w "^VM/370 Online"
 
-# SHUTDOWN
+# Shutdown
 herccontrol "/logon operator operator" -w "RECONNECTED AT"
 herccontrol "/shutdown" -w "^HHCCP011I"

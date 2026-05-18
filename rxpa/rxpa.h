@@ -29,6 +29,12 @@
 #ifndef CREXX_RXPA_H
 #define CREXX_RXPA_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 22
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "crexxpa.h"
 
 // Function to load a plugin dynamically

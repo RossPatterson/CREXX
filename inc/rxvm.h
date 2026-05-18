@@ -1,6 +1,12 @@
 #ifndef CREXX_RXVM_H
 #define CREXX_RXVM_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 15
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include <stddef.h>
 
 /* Forward declarations for opaque handles */

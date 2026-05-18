@@ -32,6 +32,27 @@
 #ifndef CREXX_RXBIN_H
 #define CREXX_RXBIN_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 29
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
+#ifndef __SPLIT_RXBIN__
+  /* Values: 0=not split; 1=compiling rxbin.c; 2=compiling whatever.c */
+#  ifdef __CMS__
+#    define __SPLIT_RXBIN__ 2
+#  else
+#    define __SPLIT_RXBIN__ 0
+#  endif
+#endif
+
+#if __SPLIT_RXBIN__ == 0
+#  define MAYBE_STATIC static
+#else
+#  define MAYBE_STATIC
+#endif
+
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -315,8 +336,83 @@ typedef struct rxbin_var_reader {
 #define RXBIN_LZSS_MAX_MATCH 18u
 #define RXBIN_LZSS_MAX_CHAIN 64u
 
+typedef struct rxbin_file_reader_state {
+    FILE *file;
+    rxbin_reader reader;
+    struct rxbin_file_reader_state *next;
+} rxbin_file_reader_state;
+
+typedef struct rxbin_mem_reader_state {
+    char **cursor_ref;
+    rxbin_reader reader;
+    struct rxbin_mem_reader_state *next;
+} rxbin_mem_reader_state;
+
+
+#if __SPLIT_RXBIN__ > 1
+extern rxbin_file_reader_state *rxbin_file_reader_states;
+extern rxbin_mem_reader_state *rxbin_mem_reader_states;
+
+void init_module(module_file *module);
+int check_header_version(module_header *header);
+int rxbin_get_operand_types(OpFormat format, OperandType *types);
+OpFormat rxbin_opcode_format(int opcode);
+void rxbin_byte_buffer_init(rxbin_byte_buffer *buffer);
+void rxbin_byte_buffer_free(rxbin_byte_buffer *buffer);
+int rxbin_byte_buffer_reserve(rxbin_byte_buffer *buffer, size_t extra);
+int rxbin_byte_buffer_append_byte(rxbin_byte_buffer *buffer, unsigned char value);
+int rxbin_byte_buffer_append_bytes(rxbin_byte_buffer *buffer, const unsigned char *data, size_t size);
+int rxbin_append_varuint_direct(rxbin_byte_buffer *buffer, uint64_t value);
+void rxbin_var_writer_init(rxbin_var_writer *writer, rxbin_byte_buffer *buffer);
+int rxbin_var_writer_write(rxbin_var_writer *writer, uint64_t value);
+int rxbin_var_writer_flush(rxbin_var_writer *writer);
+void rxbin_var_reader_init(rxbin_var_reader *reader, const unsigned char *data, size_t size);
+int rxbin_var_reader_read(rxbin_var_reader *reader, uint64_t *value);
+uint64_t rxbin_zigzag_encode(rxinteger value);
+rxinteger rxbin_zigzag_decode(uint64_t value);
+int rxbin_token_from_operand(const bin_code *operand, OperandType type, uint64_t *token);
+int rxbin_operand_from_token(bin_code *operand, OperandType type, uint64_t token);
+int rxbin_encode_instruction_stream(const bin_code *instructions, size_t instruction_size, rxbin_byte_buffer *buffer);
+int rxbin_decode_instruction_stream(const unsigned char *encoded, size_t encoded_size, bin_code *instructions,
+                                           size_t instruction_size);
+unsigned int rxbin_lzss_hash(const unsigned char *input);
+int rxbin_lzss_match_length(const unsigned char *input, size_t input_size, size_t left, size_t right);
+void rxbin_lzss_index_position(const unsigned char *input, size_t input_size, size_t position,
+                                      size_t *last_positions, size_t *prev_positions);
+int rxbin_compress_constant_pool(const unsigned char *input, size_t input_size, rxbin_byte_buffer *output);
+int rxbin_decompress_constant_pool(const unsigned char *input, size_t input_size, unsigned char *output,
+                                          size_t output_size);
+int rxbin_duplicate_block(void **out, const void *input, size_t size);
+int rxbin_read_file_block(FILE *file, void **out, size_t size);
+void rxbin_shared_pool_retain(rxbin_shared_constant_pool *pool);
+void rxbin_shared_pool_release(rxbin_shared_constant_pool **pool_ref);
+int rxbin_decode_instruction_section(module_file *module, const unsigned char *stored_data);
+int rxbin_decode_constant_section(module_file *module, const unsigned char *stored_data);
+int rxbin_decode_shared_constant_pool(const module_header *header, const unsigned char *stored_data,
+                                             rxbin_shared_constant_pool **pool_out);
+int rxbin_prepare_header_for_write(module_file *module, rxbin_byte_buffer *instruction_section,
+                                          rxbin_byte_buffer *constant_section);
+int write_module(module_file *module, FILE *outFile);
+void rxbin_reader_init_file(rxbin_reader *reader, FILE *inFile);
+void rxbin_reader_init_mem(rxbin_reader *reader, char **in_buffer, const char *end_of_buffer);
+void rxbin_reader_close(rxbin_reader *reader);
+int rxbin_reader_read_header(rxbin_reader *reader, module_header *header);
+int rxbin_reader_take_block(rxbin_reader *reader, void **out, size_t size);
+int rxbin_reader_view_block(rxbin_reader *reader, const unsigned char **out, size_t size);
+int rxbin_reader_next_module(rxbin_reader *reader, module_file **module);
+void rxbin_close_file_reader(FILE *inFile);
+void rxbin_close_mem_reader(char **in_buffer);
+int read_module(module_file **module, FILE *inFile);
+int read_module_mem(module_file **module, char **in_buffer, const char *end_of_buffer);
+void free_module(module_file *module);
+
+#else
+
+MAYBE_STATIC rxbin_file_reader_state *rxbin_file_reader_states = 0;
+MAYBE_STATIC rxbin_mem_reader_state *rxbin_mem_reader_states = 0;
+
 /* Sets Header Version and initialises the header */
-static void init_module(module_file *module) {
+MAYBE_STATIC void init_module(module_file *module) {
     memset(module, 0, sizeof(module_file)); /* Zero module file (valgrind complains otherwise) */
     memcpy(module->header.FILE_HEADER, BIN_HEADER, sizeof(BIN_HEADER));
     memcpy(module->header.FILE_VERSION, BIN_VERSION, sizeof(BIN_VERSION));
@@ -328,7 +424,7 @@ static void init_module(module_file *module) {
 /* 0 - OK */
 /* 1 - Missing Header */
 /* 2 - Version Mismatch */
-static int check_header_version(module_header *header) {
+MAYBE_STATIC int check_header_version(module_header *header) {
     if (memcmp(header->FILE_HEADER, BIN_HEADER, sizeof(BIN_HEADER)) != 0) return 1;
     if (memcmp(header->FILE_VERSION, BIN_VERSION, sizeof(BIN_VERSION)) != 0) return 2;
     if (header->section_flags & ~(RXBIN_SECTION_INST_PACKED | RXBIN_SECTION_CONST_PACKED)) return 2;
@@ -344,7 +440,7 @@ static int check_header_version(module_header *header) {
     return 0;
 }
 
-static int rxbin_get_operand_types(OpFormat format, OperandType *types) {
+MAYBE_STATIC int rxbin_get_operand_types(OpFormat format, OperandType *types) {
     switch (format) {
         case FMT_EMPTY: return 0;
         case FMT_C: types[0] = OP_CHAR; return 1;
@@ -395,8 +491,8 @@ static int rxbin_get_operand_types(OpFormat format, OperandType *types) {
     }
 }
 
-static OpFormat rxbin_opcode_format(int opcode) {
-    static const OpFormat opcode_formats[OP_MAX_INSTRUCTIONS] = {
+MAYBE_STATIC OpFormat rxbin_opcode_format(int opcode) {
+    MAYBE_STATIC const OpFormat opcode_formats[OP_MAX_INSTRUCTIONS] = {
 #define X(NAME, OPCODE, FMT, FLOW, FLAGS, DESC) [OPCODE] = FMT,
 #include "rxops.h"
 #undef X
@@ -406,20 +502,20 @@ static OpFormat rxbin_opcode_format(int opcode) {
     return opcode_formats[opcode];
 }
 
-static void rxbin_byte_buffer_init(rxbin_byte_buffer *buffer) {
+MAYBE_STATIC void rxbin_byte_buffer_init(rxbin_byte_buffer *buffer) {
     buffer->data = 0;
     buffer->size = 0;
     buffer->capacity = 0;
 }
 
-static void rxbin_byte_buffer_free(rxbin_byte_buffer *buffer) {
+MAYBE_STATIC void rxbin_byte_buffer_free(rxbin_byte_buffer *buffer) {
     if (buffer->data) free(buffer->data);
     buffer->data = 0;
     buffer->size = 0;
     buffer->capacity = 0;
 }
 
-static int rxbin_byte_buffer_reserve(rxbin_byte_buffer *buffer, size_t extra) {
+MAYBE_STATIC int rxbin_byte_buffer_reserve(rxbin_byte_buffer *buffer, size_t extra) {
     size_t required;
     size_t new_capacity;
     unsigned char *new_data;
@@ -445,13 +541,13 @@ static int rxbin_byte_buffer_reserve(rxbin_byte_buffer *buffer, size_t extra) {
     return 1;
 }
 
-static int rxbin_byte_buffer_append_byte(rxbin_byte_buffer *buffer, unsigned char value) {
+MAYBE_STATIC int rxbin_byte_buffer_append_byte(rxbin_byte_buffer *buffer, unsigned char value) {
     if (!rxbin_byte_buffer_reserve(buffer, 1)) return 0;
     buffer->data[buffer->size++] = value;
     return 1;
 }
 
-static int rxbin_byte_buffer_append_bytes(rxbin_byte_buffer *buffer, const unsigned char *data, size_t size) {
+MAYBE_STATIC int rxbin_byte_buffer_append_bytes(rxbin_byte_buffer *buffer, const unsigned char *data, size_t size) {
     if (!size) return 1;
     if (!rxbin_byte_buffer_reserve(buffer, size)) return 0;
     memcpy(buffer->data + buffer->size, data, size);
@@ -459,7 +555,7 @@ static int rxbin_byte_buffer_append_bytes(rxbin_byte_buffer *buffer, const unsig
     return 1;
 }
 
-static int rxbin_append_varuint_direct(rxbin_byte_buffer *buffer, uint64_t value) {
+MAYBE_STATIC int rxbin_append_varuint_direct(rxbin_byte_buffer *buffer, uint64_t value) {
     unsigned char bytes[9];
     size_t count = 0;
 
@@ -513,13 +609,13 @@ static int rxbin_append_varuint_direct(rxbin_byte_buffer *buffer, uint64_t value
     return rxbin_byte_buffer_append_bytes(buffer, bytes, count);
 }
 
-static void rxbin_var_writer_init(rxbin_var_writer *writer, rxbin_byte_buffer *buffer) {
+MAYBE_STATIC void rxbin_var_writer_init(rxbin_var_writer *writer, rxbin_byte_buffer *buffer) {
     writer->buffer = buffer;
     writer->pending_tiny = 0;
     writer->have_pending_tiny = 0;
 }
 
-static int rxbin_var_writer_write(rxbin_var_writer *writer, uint64_t value) {
+MAYBE_STATIC int rxbin_var_writer_write(rxbin_var_writer *writer, uint64_t value) {
     if (value <= UINT64_C(7)) {
         if (writer->have_pending_tiny) {
             unsigned char pair_byte = (unsigned char)(0x80u | (writer->pending_tiny << 3) | (unsigned char)value);
@@ -539,20 +635,20 @@ static int rxbin_var_writer_write(rxbin_var_writer *writer, uint64_t value) {
     return rxbin_append_varuint_direct(writer->buffer, value);
 }
 
-static int rxbin_var_writer_flush(rxbin_var_writer *writer) {
+MAYBE_STATIC int rxbin_var_writer_flush(rxbin_var_writer *writer) {
     if (!writer->have_pending_tiny) return 1;
     writer->have_pending_tiny = 0;
     return rxbin_append_varuint_direct(writer->buffer, writer->pending_tiny);
 }
 
-static void rxbin_var_reader_init(rxbin_var_reader *reader, const unsigned char *data, size_t size) {
+MAYBE_STATIC void rxbin_var_reader_init(rxbin_var_reader *reader, const unsigned char *data, size_t size) {
     reader->cursor = data;
     reader->end = data + size;
     reader->queued_value = 0;
     reader->have_queued_value = 0;
 }
 
-static int rxbin_var_reader_read(rxbin_var_reader *reader, uint64_t *value) {
+MAYBE_STATIC int rxbin_var_reader_read(rxbin_var_reader *reader, uint64_t *value) {
     unsigned char first;
 
     if (reader->have_queued_value) {
@@ -650,16 +746,16 @@ static int rxbin_var_reader_read(rxbin_var_reader *reader, uint64_t *value) {
     return 1;
 }
 
-static uint64_t rxbin_zigzag_encode(rxinteger value) {
+MAYBE_STATIC uint64_t rxbin_zigzag_encode(rxinteger value) {
     return (((uint64_t)value) << 1) ^
            (uint64_t)(value >> ((sizeof(rxinteger) * CHAR_BIT) - 1));
 }
 
-static rxinteger rxbin_zigzag_decode(uint64_t value) {
+MAYBE_STATIC rxinteger rxbin_zigzag_decode(uint64_t value) {
     return (rxinteger)((value >> 1) ^ (uint64_t)(-(int64_t)(value & 1u)));
 }
 
-static int rxbin_token_from_operand(const bin_code *operand, OperandType type, uint64_t *token) {
+MAYBE_STATIC int rxbin_token_from_operand(const bin_code *operand, OperandType type, uint64_t *token) {
     switch (type) {
         case OP_INT:
             *token = rxbin_zigzag_encode(operand->iconst);
@@ -681,7 +777,7 @@ static int rxbin_token_from_operand(const bin_code *operand, OperandType type, u
     }
 }
 
-static int rxbin_operand_from_token(bin_code *operand, OperandType type, uint64_t token) {
+MAYBE_STATIC int rxbin_operand_from_token(bin_code *operand, OperandType type, uint64_t token) {
     switch (type) {
         case OP_INT:
             operand->iconst = rxbin_zigzag_decode(token);
@@ -705,7 +801,7 @@ static int rxbin_operand_from_token(bin_code *operand, OperandType type, uint64_
     }
 }
 
-static int rxbin_encode_instruction_stream(const bin_code *instructions, size_t instruction_size, rxbin_byte_buffer *buffer) {
+MAYBE_STATIC int rxbin_encode_instruction_stream(const bin_code *instructions, size_t instruction_size, rxbin_byte_buffer *buffer) {
     rxbin_var_writer writer;
     size_t index = 0;
 
@@ -741,7 +837,7 @@ static int rxbin_encode_instruction_stream(const bin_code *instructions, size_t 
     return rxbin_var_writer_flush(&writer);
 }
 
-static int rxbin_decode_instruction_stream(const unsigned char *encoded, size_t encoded_size, bin_code *instructions,
+MAYBE_STATIC int rxbin_decode_instruction_stream(const unsigned char *encoded, size_t encoded_size, bin_code *instructions,
                                            size_t instruction_size) {
     rxbin_var_reader reader;
     size_t index = 0;
@@ -778,13 +874,13 @@ static int rxbin_decode_instruction_stream(const unsigned char *encoded, size_t 
     return reader.cursor == reader.end && !reader.have_queued_value;
 }
 
-static unsigned int rxbin_lzss_hash(const unsigned char *input) {
+MAYBE_STATIC unsigned int rxbin_lzss_hash(const unsigned char *input) {
     return (unsigned int)(((unsigned int)input[0] * 251u +
                            (unsigned int)input[1] * 11u +
                            (unsigned int)input[2]) & (RXBIN_LZSS_HASH_SIZE - 1u));
 }
 
-static int rxbin_lzss_match_length(const unsigned char *input, size_t input_size, size_t left, size_t right) {
+MAYBE_STATIC int rxbin_lzss_match_length(const unsigned char *input, size_t input_size, size_t left, size_t right) {
     size_t max_length = input_size - right;
     size_t length = 0;
 
@@ -795,7 +891,7 @@ static int rxbin_lzss_match_length(const unsigned char *input, size_t input_size
     return (int)length;
 }
 
-static void rxbin_lzss_index_position(const unsigned char *input, size_t input_size, size_t position,
+MAYBE_STATIC void rxbin_lzss_index_position(const unsigned char *input, size_t input_size, size_t position,
                                       size_t *last_positions, size_t *prev_positions) {
     unsigned int hash;
 
@@ -809,7 +905,7 @@ static void rxbin_lzss_index_position(const unsigned char *input, size_t input_s
     last_positions[hash] = position;
 }
 
-static int rxbin_compress_constant_pool(const unsigned char *input, size_t input_size, rxbin_byte_buffer *output) {
+MAYBE_STATIC int rxbin_compress_constant_pool(const unsigned char *input, size_t input_size, rxbin_byte_buffer *output) {
     size_t *prev_positions = 0;
     size_t last_positions[RXBIN_LZSS_HASH_SIZE];
     size_t position = 0;
@@ -898,7 +994,7 @@ static int rxbin_compress_constant_pool(const unsigned char *input, size_t input
     return 1;
 }
 
-static int rxbin_decompress_constant_pool(const unsigned char *input, size_t input_size, unsigned char *output,
+MAYBE_STATIC int rxbin_decompress_constant_pool(const unsigned char *input, size_t input_size, unsigned char *output,
                                           size_t output_size) {
     size_t in_pos = 0;
     size_t out_pos = 0;
@@ -938,7 +1034,7 @@ static int rxbin_decompress_constant_pool(const unsigned char *input, size_t inp
     return in_pos == input_size;
 }
 
-static int rxbin_duplicate_block(void **out, const void *input, size_t size) {
+MAYBE_STATIC int rxbin_duplicate_block(void **out, const void *input, size_t size) {
     void *copy;
 
     *out = 0;
@@ -951,7 +1047,7 @@ static int rxbin_duplicate_block(void **out, const void *input, size_t size) {
     return 1;
 }
 
-static int rxbin_read_file_block(FILE *file, void **out, size_t size) {
+MAYBE_STATIC int rxbin_read_file_block(FILE *file, void **out, size_t size) {
     void *buffer;
 
     *out = 0;
@@ -968,12 +1064,12 @@ static int rxbin_read_file_block(FILE *file, void **out, size_t size) {
     return 1;
 }
 
-static void rxbin_shared_pool_retain(rxbin_shared_constant_pool *pool) {
+MAYBE_STATIC void rxbin_shared_pool_retain(rxbin_shared_constant_pool *pool) {
     if (!pool) return;
     pool->refcount++;
 }
 
-static void rxbin_shared_pool_release(rxbin_shared_constant_pool **pool_ref) {
+MAYBE_STATIC void rxbin_shared_pool_release(rxbin_shared_constant_pool **pool_ref) {
     rxbin_shared_constant_pool *pool;
 
     if (!pool_ref || !*pool_ref) return;
@@ -986,7 +1082,7 @@ static void rxbin_shared_pool_release(rxbin_shared_constant_pool **pool_ref) {
     *pool_ref = 0;
 }
 
-static int rxbin_decode_instruction_section(module_file *module, const unsigned char *stored_data) {
+MAYBE_STATIC int rxbin_decode_instruction_section(module_file *module, const unsigned char *stored_data) {
     size_t expanded_size = module->header.instruction_size * sizeof(bin_code);
 
     module->instructions = 0;
@@ -1008,7 +1104,7 @@ static int rxbin_decode_instruction_section(module_file *module, const unsigned 
     return 1;
 }
 
-static int rxbin_decode_constant_section(module_file *module, const unsigned char *stored_data) {
+MAYBE_STATIC int rxbin_decode_constant_section(module_file *module, const unsigned char *stored_data) {
     module->constant = 0;
 
     if (!module->header.constant_size) return 1;
@@ -1026,7 +1122,7 @@ static int rxbin_decode_constant_section(module_file *module, const unsigned cha
     return 1;
 }
 
-static int rxbin_decode_shared_constant_pool(const module_header *header, const unsigned char *stored_data,
+MAYBE_STATIC int rxbin_decode_shared_constant_pool(const module_header *header, const unsigned char *stored_data,
                                              rxbin_shared_constant_pool **pool_out) {
     rxbin_shared_constant_pool *pool;
 
@@ -1068,7 +1164,7 @@ static int rxbin_decode_shared_constant_pool(const module_header *header, const 
     return 1;
 }
 
-static int rxbin_prepare_header_for_write(module_file *module, rxbin_byte_buffer *instruction_section,
+MAYBE_STATIC int rxbin_prepare_header_for_write(module_file *module, rxbin_byte_buffer *instruction_section,
                                           rxbin_byte_buffer *constant_section) {
     rxbin_byte_buffer packed_instructions;
     rxbin_byte_buffer packed_constants;
@@ -1124,7 +1220,7 @@ static int rxbin_prepare_header_for_write(module_file *module, rxbin_byte_buffer
 
 /* Write out the module */
 /* 0 on success, 1 on error (use perror) */
-static int write_module(module_file *module, FILE *outFile) {
+MAYBE_STATIC int write_module(module_file *module, FILE *outFile) {
     rxbin_byte_buffer instruction_section;
     rxbin_byte_buffer constant_section;
     int rc = 1;
@@ -1157,21 +1253,21 @@ done:
     return rc;
 }
 
-static void free_module(module_file *module);
+MAYBE_STATIC void free_module(module_file *module);
 
-static void rxbin_reader_init_file(rxbin_reader *reader, FILE *inFile) {
+MAYBE_STATIC void rxbin_reader_init_file(rxbin_reader *reader, FILE *inFile) {
     memset(reader, 0, sizeof(rxbin_reader));
     reader->file = inFile;
 }
 
-static void rxbin_reader_init_mem(rxbin_reader *reader, char **in_buffer, const char *end_of_buffer) {
+MAYBE_STATIC void rxbin_reader_init_mem(rxbin_reader *reader, char **in_buffer, const char *end_of_buffer) {
     memset(reader, 0, sizeof(rxbin_reader));
     reader->from_memory = 1;
     reader->buffer_cursor = in_buffer;
     reader->buffer_end = end_of_buffer;
 }
 
-static void rxbin_reader_close(rxbin_reader *reader) {
+MAYBE_STATIC void rxbin_reader_close(rxbin_reader *reader) {
     if (!reader) return;
     if (reader->active_shared_pool) rxbin_shared_pool_release(&reader->active_shared_pool);
     reader->file = 0;
@@ -1180,7 +1276,7 @@ static void rxbin_reader_close(rxbin_reader *reader) {
     reader->from_memory = 0;
 }
 
-static int rxbin_reader_read_header(rxbin_reader *reader, module_header *header) {
+MAYBE_STATIC int rxbin_reader_read_header(rxbin_reader *reader, module_header *header) {
     if (reader->from_memory) {
         if (*reader->buffer_cursor >= reader->buffer_end) return 1;
         if ((size_t)(reader->buffer_end - *reader->buffer_cursor) < sizeof(module_header)) return -1;
@@ -1196,7 +1292,7 @@ static int rxbin_reader_read_header(rxbin_reader *reader, module_header *header)
     return 0;
 }
 
-static int rxbin_reader_take_block(rxbin_reader *reader, void **out, size_t size) {
+MAYBE_STATIC int rxbin_reader_take_block(rxbin_reader *reader, void **out, size_t size) {
     if (reader->from_memory) {
         *out = 0;
         if (!size) return 1;
@@ -1208,7 +1304,7 @@ static int rxbin_reader_take_block(rxbin_reader *reader, void **out, size_t size
     return rxbin_read_file_block(reader->file, out, size);
 }
 
-static int rxbin_reader_view_block(rxbin_reader *reader, const unsigned char **out, size_t size) {
+MAYBE_STATIC int rxbin_reader_view_block(rxbin_reader *reader, const unsigned char **out, size_t size) {
     *out = 0;
     if (!size) return 1;
 
@@ -1222,7 +1318,7 @@ static int rxbin_reader_view_block(rxbin_reader *reader, const unsigned char **o
     return rxbin_read_file_block(reader->file, (void **)out, size);
 }
 
-static int rxbin_reader_next_module(rxbin_reader *reader, module_file **module) {
+MAYBE_STATIC int rxbin_reader_next_module(rxbin_reader *reader, module_file **module) {
     module_header header;
     const unsigned char *stored_instructions;
     const unsigned char *stored_constants;
@@ -1319,22 +1415,7 @@ error:
     }
 }
 
-typedef struct rxbin_file_reader_state {
-    FILE *file;
-    rxbin_reader reader;
-    struct rxbin_file_reader_state *next;
-} rxbin_file_reader_state;
-
-typedef struct rxbin_mem_reader_state {
-    char **cursor_ref;
-    rxbin_reader reader;
-    struct rxbin_mem_reader_state *next;
-} rxbin_mem_reader_state;
-
-static rxbin_file_reader_state *rxbin_file_reader_states = 0;
-static rxbin_mem_reader_state *rxbin_mem_reader_states = 0;
-
-static void rxbin_close_file_reader(FILE *inFile) {
+MAYBE_STATIC void rxbin_close_file_reader(FILE *inFile) {
     rxbin_file_reader_state **node = &rxbin_file_reader_states;
 
     while (*node) {
@@ -1349,7 +1430,7 @@ static void rxbin_close_file_reader(FILE *inFile) {
     }
 }
 
-static void rxbin_close_mem_reader(char **in_buffer) {
+MAYBE_STATIC void rxbin_close_mem_reader(char **in_buffer) {
     rxbin_mem_reader_state **node = &rxbin_mem_reader_states;
 
     while (*node) {
@@ -1371,7 +1452,7 @@ static void rxbin_close_mem_reader(char **in_buffer) {
  * 2 on file version mismatch
  * -1 on error
  * (use perror), on an error you can/should use free_module() */
-static int read_module(module_file **module, FILE *inFile) {
+MAYBE_STATIC int read_module(module_file **module, FILE *inFile) {
     rxbin_file_reader_state *node = rxbin_file_reader_states;
     int rc;
 
@@ -1398,7 +1479,7 @@ static int read_module(module_file **module, FILE *inFile) {
  * 2 on file version mismatch
  * -1 on error
  * (use perror), on an error you can/should use free_module() */
-static int read_module_mem(module_file **module, char **in_buffer, const char *end_of_buffer) {
+MAYBE_STATIC int read_module_mem(module_file **module, char **in_buffer, const char *end_of_buffer) {
     rxbin_mem_reader_state *node = rxbin_mem_reader_states;
     int rc;
 
@@ -1419,7 +1500,7 @@ static int read_module_mem(module_file **module, char **in_buffer, const char *e
 
 /* Free the module */
 /* Free's the module returned by read_module() or read_module_mem() */
-static void free_module(module_file *module) {
+MAYBE_STATIC void free_module(module_file *module) {
     if (!module) return;
     if (module->shared_constant_pool) {
         rxbin_shared_pool_release(&module->shared_constant_pool);
@@ -1433,5 +1514,9 @@ static void free_module(module_file *module) {
     }
     free(module);
 }
+
+#endif /* __SPLIT_RXBIN__ > 1 ... else */
+#undef MAYBE_STATIC
+#undef __SPLIT_RXBIN__
 
 #endif //CREXX_RXBIN_H

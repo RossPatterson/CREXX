@@ -29,6 +29,12 @@
 #ifndef CREXX_RXCP_VAL_H
 #define CREXX_RXCP_VAL_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 13
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "rxcpmain.h"
 #include "rxcpbgmr.h"
 #include "../binutils/include/rxdefs.h"

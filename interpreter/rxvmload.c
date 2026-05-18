@@ -24,6 +24,12 @@
 
 /* CREXX Module Loader */
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 24
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include <stdlib.h>
 #include "rxvmintp.h"
 #include "rxastree.h"

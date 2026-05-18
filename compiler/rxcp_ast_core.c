@@ -464,7 +464,7 @@ struct add_dast_context {
     ASTNode *insert_point;
 };
 
-walker_result add_dast_walker_handler1(walker_direction direction,
+static walker_result add_dast_walker_handler1(walker_direction direction,
                                         ASTNode* node, void *payload) {
     ASTNode* new_node;
     struct add_dast_context *context = (struct add_dast_context *)payload;

@@ -26,6 +26,12 @@
 #ifndef CREXX_RXSA_H
 #define CREXX_RXSA_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 1
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include <stddef.h>
 #include <stdio.h>
 #include "platform.h"

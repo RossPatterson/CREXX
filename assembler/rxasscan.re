@@ -67,7 +67,8 @@ int rx_scan(Assembler_Context* s, char *buff_end) {
     rreg = 'r' digit+;
     greg = 'g' digit+;
     areg = 'a' digit+;
-    id = (letter | [_\xc2\xa7]) (letter | digit | [_\-.#\xc2\xa7])*;
+// TEMP  id = (letter | [_\xc2\xa7]) (letter | digit | [_\-.#\xc2\xa7])*;
+    id = (letter | [_]) (letter | digit | [_\-.#])*;
 
     "/*" {
       depth = 1;

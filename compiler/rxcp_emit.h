@@ -29,6 +29,12 @@
 #ifndef CREXX_RXCP_EMIT_H
 #define CREXX_RXCP_EMIT_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 7
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "rxcp_types.h"
 
 #define UNSET_REGISTER (-1)

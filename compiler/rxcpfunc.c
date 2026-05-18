@@ -26,12 +26,20 @@
  * Built-in and External Function Management
  */
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 25
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
+#ifndef __CMS__
 #include <sys/stat.h>
+#endif
 #include "avl_tree.h"
 #include "platform.h"
 #include "rxcpmain.h"
@@ -3349,6 +3357,9 @@ static char *join_importable_path(const char *directory, const char *name) {
 }
 
 static time_t read_importable_mtime(const char *directory, const char *name) {
+#ifdef __CMS__
+    return 0;
+#else
     struct stat st;
     char *path;
     time_t mtime;
@@ -3359,6 +3370,7 @@ static time_t read_importable_mtime(const char *directory, const char *name) {
     else mtime = 0;
     free(path);
     return mtime;
+#endif
 }
 
 static importable_file* importable_file_f(char* name, file_type type, char *location) {
