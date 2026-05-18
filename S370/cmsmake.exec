@@ -1,183 +1,676 @@
-/* THIS EXEC BUILDS CREXX */
-SOURCE_DISK = 'D'
-BINARY_DISK = 'E'
+/* This exec builds CREXX */
+/*
+Signal on Error
+*/
+'SPOOL CONS START TO * PURGE'
+Trace C
+Arg SourceDisk BinaryDisk
 
-BUILD_RESULT = 0
+If SourceDisk = '' then SourceDisk = 'D'
+If BinaryDisk = '' then BinaryDisk = 'E'
 
-'GLOBAL TXTLIB GCCLIB'
-
-CALL BUILD "D"
-IF BUILD_RESULT = 0 THEN CALL BUILD
-
-SAY "RX COMPILE"
-'RXC -V'
-
-SAY "RX ASSEMBLE"
-'RXAS -V'
-'RXAS -I'
-'RXAS -A'
-
-/* Panic - todo
-SAY "RX DISASSEMBLE"
-'RXDAS -V'
+/* Build DEBUG versions */
+Call Build 'D', SourceDisk, BinaryDisk
+/*
+/* Build non-DEBUG versions */
+Call Build '',SourceDisk, BinaryDisk
 */
 
-/* Out of memory - todo
-SAY "RX RUN"
-'RXBVM -V'
-*/
+Call Test SourceDisk
+Exit 0
 
-/* Tests */
-/* Panic - todo
-'RXAS -L' SOURCE_DISK 'ASCOMMON'
-IF RC>0 THEN BUILD_RESULT = RC
-*/
+Error:
+Say 'Error' RC 'in line' SigL':' SourceLine(SigL)
+Exit RC
 
-/* Out of memory - todo
-'RXBVM -L' SOURCE_DISK 'ASCOMMON'
-IF RC>0 THEN BUILD_RESULT = RC
-*/
+Build: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
 
-/* Panic - todo
-'RXAS -L' SOURCE_DISK 'ASEBCDIC'
-IF RC>0 THEN BUILD_RESULT = RC
-*/
+   /* The order of these builds matters, because of included TEXT files. */
+   Call BuildCMS          Debug?, SourceDisk, BinaryDisk
+   Call BuildPlatform     Debug?, SourceDisk, BinaryDisk
+   Call BuildAvlTree      Debug?, SourceDisk, BinaryDisk
+   Call BuildAssembler    Debug?, SourceDisk, BinaryDisk
+   Call BuildCPacker      Debug?, SourceDisk, BinaryDisk
+   Call BuildCompiler     Debug?, SourceDisk, BinaryDisk
+return
+   Call BuildLinker       Debug?, SourceDisk, BinaryDisk
+   Call BuildDisassembler Debug?, SourceDisk, BinaryDisk
+   /* Call BuildDebugger     Debug?, SourceDisk, BinaryDisk */
+   Call BuildInterpreter  Debug?, SourceDisk, BinaryDisk
+   Call BuildRxPA         Debug?, SourceDisk, BinaryDisk
+   /* Call BuildLib          Debug?, SourceDisk, BinaryDisk */
+   /* Call BuildDemos        Debug?, SourceDisk, BinaryDisk */
+   /* Call BuildTests        Debug?, SourceDisk, BinaryDisk */
+   Call BuildBin          Debug?, SourceDisk, BinaryDisk
+   Call BuildCRexxDriver  Debug?, SourceDisk, BinaryDisk
 
-/* Out of memory - todo
-'RXBVM -L' SOURCE_DISK 'ASEBCDIC'
-IF RC>0 THEN BUILD_RESULT = RC
-*/
+   /* CLEANUP */
+   'LISTFILE * TEXT A ( EXEC'
+   'EXPLOIT COPY &FN &FT A = =' BinaryDisk '(OLDDATE REPLACE'
+   'ERASE * TEXT A'
+   'ERASE * MODULE A'
+   'ERASE LOAD MAP A'
 
-'RENAME BASIC EXEC' SOURCE_DISK '= REXX ='
+Return
 
-/* Panic - todo
-'RXC -L' SOURCE_DISK 'BASIC'
-IF RC>0 THEN BUILD_RESULT = RC
-*/
+BuildCMS: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
 
-/* Panic - todo
-'RXAS -L' SOURCE_DISK 'BASIC'
-IF RC>0 THEN BUILD_RESULT = RC
-*/
+   /* S370/... */
+   'GCC CMSUTIL  C' SourceDisk '( CMS PARM' ParmFn
 
-/* Out of memory - todo
-'RXBVM -L' SOURCE_DISK 'BASIC'
-IF RC>0 THEN BUILD_RESULT = RC
-*/
+Return
 
-IF BUILD_RESULT > 0 THEN DO
-SAY "***********************************"
-SAY "***** THERE WERE BUILD ERRORS *****"
-SAY "***** THERE WERE BUILD ERRORS *****"
-SAY "***** THERE WERE BUILD ERRORS *****"
-SAY "***********************************"
-END
+BuildPlatform: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
 
-EXIT BUILD_RESULT
+   /* platform/CMakeLists.txt */
+   'GCC PLATFORM C' SourceDisk '( CMS PARM' ParmFn
+   'GCC SPLTPAR C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
 
-BUILD: PROCEDURE EXPOSE SOURCE_DISK BINARY_DISK RESULT
-  ARG DEBUG
+   'GLOBAL TXTLIB GCCLIB'
+   'LOAD SPLTPAR ( CLEAR RESET @@MAIN'
+   'GENMOD SPLTPAR' || Debug? '( FROM SPLTPAR@'
+   'COPY SPLTPAR' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A SPLTPAR' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
 
-  PARM = "CREXX" || DEBUG /* DEBUG/RELEASE COMPILER OPTIONS */
+Return
 
-  /* CMS GLUE */
-  RESULT = 0
-  CALL COMPILE "CMSUTIL"
 
-  /* AVL TREE */
-  RESULT = 0
-  CALL COMPILE "AVL_TREE"
+BuildAvlTree: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
 
-  /* MACHINE */
-  RESULT = 0
-  CALL COMPILE "RXVMINST"
+   /* AVLTREE/CMakeLists.txt */
+   'GCC AVLTREE  C' SourceDisk '( CMS PARM' ParmFn
 
-  IF BUILD_RESULT > 0 THEN EXIT BUILD_RESULT
+Return
 
-  /* COMPILER */
-  /* REQUIRES - AVL_TREE and MACHINE aka RXVMINST */
-  RESULT = 0
-  CALL COMPILE "RXCPMAIN"
-  CALL COMPILE "RXCPAST"
-  CALL COMPILE "RXCPOSCN"
-  CALL COMPILE "RXCPOPGR"
-  CALL COMPILE "RXCPOPAR"
-  CALL COMPILE "REXBSCAN"
-  CALL COMPILE "RXCPBGMR"
-  CALL COMPILE "RXCPBPAR"
-  CALL COMPILE "RXCPBVAL"
-  CALL COMPILE "RXCPSYMB"
-  CALL COMPILE "RXCPEMIT"
-  CALL COMPILE "RXCP_OPT"
-  IF RESULT = 0 THEN DO
-    "LOAD RXCPMAIN RXCPAST RXCPOSCN RXCPOPGR RXCPOPAR REXBSCAN RXCPBGMR RXCPBPAR RXCPBVAL RXCPSYMB RXCP_OPT RXCPEMIT RXVMINST AVL_TREE CMSUTIL"
-    IF RC > 0 THEN BUILD_RESULT = RC
-    "GENMOD RXC" || DEBUG
-    IF RC > 0 THEN BUILD_RESULT = RC
-    "COPY RXC" || DEBUG "MODULE A = =" BINARY_DISK
-    SAY "RXC" || DEBUG "-V"
-    "RXC" || DEBUG "-V"
-  END
 
-  /* ASSEMBLER */
-  RESULT = 0
-  CALL COMPILE "RXASSCAN"
-  CALL COMPILE "RXASGRMR"
-  CALL COMPILE "RXASMAIN"
-  CALL COMPILE "RXASTOKE"
-  CALL COMPILE "RXASEROR"
-  CALL COMPILE "RXASASSM"
-  CALL COMPILE "RXAS_OPT"
-  IF RESULT = 0 THEN DO
-    "LOAD RXASSCAN RXASGRMR RXASMAIN RXASTOKE RXASEROR RXASASSM RXVMINST RXAS_OPT AVL_TREE CMSUTIL"
-    IF RC > 0 THEN BUILD_RESULT = RC
-    "GENMOD RXAS" || DEBUG
-    IF RC > 0 THEN BUILD_RESULT = RC
-    "COPY RXAS" || DEBUG "MODULE A = =" BINARY_DISK
-    SAY "RXAS" || DEBUG "-V"
-    "RXAS" || DEBUG "-V"
-  END
+BuildAssembler: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
 
-  /* BYTECODE INTERPRETER - RXBVM */
-  /* REQUIRES - MACHINE AVL_TREE */
-/* TODO Out of memory
-  RESULT = 0
-  CALL COMPILE "RXVMMAIN"
-  CALL COMPILE "RXVMINTP"
-  IF RESULT = 0 THEN DO
-    "LOAD RXVMMAIN RXVMINTP RXVMINST AVL_TREE CMSUTIL"
-    IF RC > 0 THEN BUILD_RESULT = RC
-    "GENMOD RXBVM" || DEBUG
-    IF RC > 0 THEN BUILD_RESULT = RC
-    "COPY RXBVM" || DEBUG "MODULE A = =" BINARY_DISK
-    SAY "RXBVM" || DEBUG "-V"
-    "RXBVM" || DEBUG "-V"
-  END
-*/
-  /* DISASSEMBLER - RXDAS */
-  /* REQUIRES - MACHINE AVL_TREE */
-  RESULT = 0
-  CALL COMPILE "RXDAMAIN"
-  CALL COMPILE "RXDADISM"
-  IF RESULT = 0 THEN DO
-    "LOAD RXDAMAIN RXDADISM RXVMINST AVL_TREE CMSUTIL"
-    IF RC > 0 THEN BUILD_RESULT = RC
-    "GENMOD RXDAS" || DEBUG
-    IF RC > 0 THEN BUILD_RESULT = RC
-    "COPY RXDAS" || DEBUG "MODULE A = =" BINARY_DISK
-    SAY "RXDAS" || DEBUG "-V"
-    "RXDAS" || DEBUG "-V"
-  END
+   /* assembler/CMakeLists.txt */
+   'GCC RXASASSM C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXASDSL  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXASEROR C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXASGRMR C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXASLIB  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXASMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+   'GCC RXASOPT  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXASSCAN C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXASTOKE C' SourceDisk '( CMS PARM' ParmFn
 
-  /* CLEANUP */
-  "ERASE * TEXT" SOURCE_DISK
-  "ERASE * MODULE A"
-RETURN
+   'GLOBAL TXTLIB GCCLIB'
+   'LOAD RXASMAIN RXASEROR RXASASSM RXASLIB RXASOPT RXASGRMR RXASSCAN' ,
+      'RXASTOKE CMSUTIL AVLTREE PLATFORM ( CLEAR RESET @@MAIN'
+   'GENMOD RXAS' || Debug? '( FROM RXASMAI@'
+   Say 'RXAS' || Debug? '-V'
+   'RXAS' || Debug? '-V'
+   'COPY RXAS' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXAS' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXAS' || Debug? 'MODULE A'
 
-COMPILE: PROCEDURE EXPOSE SOURCE_DISK BINARY_DISK RESULT PARM BUILD_RESULT
-  ARG FILE
-  SAY "COMPILING" FILE
-  "EXEC GCC" FILE "C" SOURCE_DISK "(CMS PARM" PARM
-  IF RC>0 THEN RESULT = RC
-  IF RESULT > 0 THEN BUILD_RESULT = RESULT
-RETURN
+Return
+
+
+BuildCPacker: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
+
+   /* cpacker/CMakeLists.txt */
+   'GCC RXCPACK C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+
+   'GLOBAL TXTLIB GCCLIB'
+   'LOAD RXCPACK CMSUTIL PLATFORM ( CLEAR RESET @@MAIN'
+   'GENMOD RXCPACK' || Debug? '(FROM RXCPACK@'
+   Say 'RXCPACK' || Debug? '-V'
+   'RXCPACK' || Debug? '-V'
+   'COPY RXCPACK' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXCPACK' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXCPACK' || Debug? 'MODULE A'
+
+Return
+
+
+BuildCompiler: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
+
+'SPLTPAR' || Debug? 'rxcpbgmr.c.' || SourceDisk 'rxcpbg'
+   'GCC REXBSCAN C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPBG03 C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPBG04 C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPBG05 C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPBG06 C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPBG07 C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPBG09 C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPBG10 C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPBPAR C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPFUNC C' SourceDisk '( CMS PARM' ParmFn
+'SVCTRACE ON'
+   'GCC RXCPMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+'SVCTRACE OFF'
+   'GCC RXCPOPAR C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPOPGR C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPOSCN C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPSYMB C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCUTIL   C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCACORE  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCAPRT   C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCAREWRT C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCASVAL  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCAWALK  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCDIAGFB C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPDSL  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPEMIT C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCECORE  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCEEXPR  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCEFLOW  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCEMETA  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCEPROC  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCEREG   C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCEXIT   C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCFIXUP  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCHICTL  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCINLINE C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXCPOPT  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCSRCTR  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCVCHECK C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCVORCH  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCVPLGIN C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCVSYM   C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCVTRANS C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCVTYPE  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RCINSTR  C' SourceDisk '( CMS PARM' ParmFn
+
+   'GLOBAL TXTLIB GCCLIB'
+   'LOAD RXCPMAIN RCACORE RCAPRT RCAREWRT RCASVAL RCAWALK RCUTIL' ,
+      'RCDIAGFB RXCPDSL RCHICTL RXCPOSCN RXCPOPGR RXCPOPAR REXBSCAN' ,
+      'RXCPBG03 RXCPBG04 RXCPBG05 RXCPBG06 RXCPBG07 RXCPBG09 RXCPBG10' ,
+      'RXCPBPAR RCSRCTR RCVCHECK RCVORCH RCVPLGIN RCVSYM RCVTRANS RCVTYPE' ,
+      'RXCPSYMB RCFIXUP RCINLINE RCECORE RCEEXPR RCEFLOW RCEMETA' ,
+      'RCEPROC RCEREG RXCPOPT RXCPFUNC RCEXIT CMSUTIL ( CLEAR RESET RXCPMAI@'
+   'GENMOD RXC' || Debug? '( FROM RXCPMAI@'
+
+   Say 'RXC' || Debug? '-V'
+   'RXC' || Debug? '-V'
+   'COPY RXC' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXC' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXC' || Debug? 'MODULE A'
+
+Return
+
+
+BuildLinker: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
+
+   'GCC RXLKMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+
+   'GLOBAL TXTLIB GCCLIB'
+   'LOAD RXLKMAIN CMSUTIL PLATFORM ( CLEAR RESET @@MAIN'
+   'GENMOD RXLINK' || Debug? '( FROM RXLKMAI@'
+   Say 'RXLINK' || Debug? '-H'
+   'RXLINK' || Debug? '-H'
+   'COPY RXLINK' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXLINK' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXLINK' || Debug? 'MODULE A'
+
+Return
+
+
+BuildDisassembler: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
+
+   'GCC RXDAMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+   'GCC RXDADISM C' SourceDisk '( CMS PARM' ParmFn
+
+   'GLOBAL TXTLIB GCCLIB'
+   'LOAD RXDAMAIN RXDADISM CMSUTIL PLATFORM ( CLEAR RESET @@MAIN'
+   'GENMOD RXDAS' || Debug? '( FROM RXDAMAI@'
+   Say 'RXDAS' || Debug? '-V'
+   'RXDAS' || Debug? '-V'
+   'COPY RXDAS' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXDAS' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXDAS' || Debug? 'MODULE A'
+
+Return
+
+
+BuildInterpreter: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+
+   /* TODO - What do we do about these?
+      set(CMAKE_C_STANDARD 99) # enables inline keyword
+      set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG") # Can do more I am sure but this is about as good as it get in practice
+      set(CREXX_DEFAULT_TLS_BACKEND OPENSSL)
+  */
+
+   /* RXPA Shim Library - Provides standard rxpa_ symbols for standalone targets */
+   ParmFn = 'CREXX' || Debug?
+   'GCC RXPASHIM C' SourceDisk '( CMS PARM' ParmFn
+
+   /* Packed Library */
+   'RXPACK -o LIBRARY bin/library'
+   /* TODO
+   'GCC LIBRARY  C A ( CMS PARM' ParmFn
+      Source file LIBRARY C A not found.
+   */
+
+   /* Bare Interpreter - Threaded Version */
+   /* TODO
+   'GCC RXVMMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+      <stdin>:72: conflicting types for `_FN0143'
+      rcutil.h:43: previous declaration of `_FN0143'
+      <stdin>: In function `main':
+      <stdin>:123: `decnumber' undeclared (first use in this function)
+      <stdin>:123: (Each undeclared identifier is reported only once
+      <stdin>:123: for each function it appears in.)
+      Return code 12 from GCC of RXVMMAIN
+   'GCC RXVMINTP C' SourceDisk '( CMS PARM' ParmFn
+      <stdin>:67:19: fcntl.h: An error has occurred
+      In file included from <stdin>:73:
+      cmstime.h:1:2: #error This header does not exist in CMS
+      In file included from <stdin>:86:
+      rxvmvars.h: In function `_FN0362':
+      rxvmvars.h:1547: Internal compiler error in ?, at <stdin>:902
+      Please submit a full bug report,
+      with preprocessed source if appropriate.
+      See <URL:http://gcc.gnu.org/bugs.html> for instructions.
+      Return code 12 from GCC of RXVMINTP
+   'GCC RXVMLOAD C' SourceDisk '( CMS PARM' ParmFn
+      In file included from <stdin>:30:
+      rxvmvars.h: In function `_FN0362':
+      rxvmvars.h:1547: Internal compiler error in ?, at <stdin>:902
+      Please submit a full bug report,
+      with preprocessed source if appropriate.
+      See <URL:http://gcc.gnu.org/bugs.html> for instructions.
+      Return code 12 from GCC of RXVMLOAD
+   'GCC INTERRUP C' SourceDisk '( CMS PARM' ParmFn
+      OPEN ERROR CODE '04' ON 'PDP001HD'.
+      <stdin>:95:47: unistd.h: An error has occurred
+
+      <stdin>:132: `SIGQUIT' undeclared here (not in a function)
+      <stdin>:132: initializer element is not constant
+      <stdin>:132: (near initialization for `g_signal_map[3].os_signal')
+      <stdin>:132: initializer element is not constant
+      <stdin>:132: (near initialization for `g_signal_map[3]')
+      <stdin>:133: `SIGHUP' undeclared here (not in a function)
+      <stdin>:133: initializer element is not constant
+      <stdin>:133: (near initialization for `g_signal_map[4].os_signal')
+      <stdin>:133: initializer element is not constant
+      <stdin>:133: (near initialization for `g_signal_map[4]')
+      <stdin>:134: `SIGUSR1' undeclared here (not in a function)
+      <stdin>:134: initializer element is not constant
+      <stdin>:134: (near initialization for `g_signal_map[5].os_signal')
+      <stdin>:134: initializer element is not constant
+      <stdin>:134: (near initialization for `g_signal_map[5]')
+      <stdin>:135: `SIGUSR2' undeclared here (not in a function)
+      <stdin>:135: initializer element is not constant
+      <stdin>:135: (near initialization for `g_signal_map[6].os_signal')
+      <stdin>:135: initializer element is not constant
+      <stdin>:135: (near initialization for `g_signal_map[6]')
+      <stdin>:136: `SIGCHLD' undeclared here (not in a function)
+      <stdin>:136: initializer element is not constant
+      <stdin>:136: (near initialization for `g_signal_map[7].os_signal')
+      <stdin>:136: initializer element is not constant
+      <stdin>:136: (near initialization for `g_signal_map[7]')
+      <stdin>:137: `SIGPIPE' undeclared here (not in a function)
+      <stdin>:137: initializer element is not constant
+      <stdin>:137: (near initialization for `g_signal_map[8].os_signal')
+      <stdin>:137: initializer element is not constant
+      <stdin>:137: (near initialization for `g_signal_map[8]')
+      <stdin>: In function `_FN0247':
+      <stdin>:217: storage size of `sa_new' isn't known
+      <stdin>:243: storage size of `sa_old' isn't known
+      <stdin>:250: invalid use of undefined type `struct sigaction'
+      <stdin>:250: sizeof applied to an incomplete type
+      <stdin>:254: invalid use of undefined type `struct sigaction'
+      <stdin>:254: sizeof applied to an incomplete type
+      <stdin>:255: invalid use of undefined type `struct sigaction'
+      <stdin>:256: invalid use of undefined type `struct sigaction'
+      <stdin>:264: `SA_RESTART' undeclared (first use in this function)
+      <stdin>:264: (Each undeclared identifier is reported only once
+      <stdin>:264: for each function it appears in.)
+      <stdin>: In function `_FN0248':
+      <stdin>:288: storage size of `sa_new' isn't known
+      <stdin>:312: storage size of `sa_old' isn't known
+      <stdin>:319: invalid use of undefined type `struct sigaction'
+      <stdin>:319: sizeof applied to an incomplete type
+      <stdin>:323: invalid use of undefined type `struct sigaction'
+      <stdin>:323: sizeof applied to an incomplete type
+      <stdin>:324: invalid use of undefined type `struct sigaction'
+      <stdin>:325: invalid use of undefined type `struct sigaction'
+      <stdin>:333: `SA_RESTART' undeclared (first use in this function)
+      <stdin>: In function `_FN0249':
+      <stdin>:379: invalid use of undefined type `struct sigaction'
+      <stdin>: In function `_FN0250':
+      <stdin>:409: invalid use of undefined type `struct sigaction'
+      <stdin>:409: sizeof applied to an incomplete type
+      <stdin>: At top level:
+      <stdin>:109: storage size of `g_original_os_actions' isn't known
+      Return code 12 from GCC of INTERRUP
+   'GCC RXSPAWN  C' SourceDisk '( CMS PARM' ParmFn
+      In file included from <stdin>:65:
+      rxvmvars.h: In function `_FN0362':
+      rxvmvars.h:1547: Internal compiler error in ?, at <stdin>:902
+      Please submit a full bug report,
+      with preprocessed source if appropriate.
+      See <URL:http://gcc.gnu.org/bugs.html> for instructions.
+      Return code 12 from GCC of RXSPAWN
+   */
+   'GCC EXITFUNC C' SourceDisk '( CMS PARM' ParmFn
+   /* TODO
+   'GCC RXPAFUNC C' SourceDisk '( CMS PARM' ParmFn
+      In file included from <stdin>:30:
+      rxvmvars.h: In function `_FN0356':
+      rxvmvars.h:1229: Internal compiler error in ?, at <stdin>:902
+      Please submit a full bug report,
+      with preprocessed source if appropriate.
+      See <URL:http://gcc.gnu.org/bugs.html> for instructions.
+      Return code 12 from GCC of RXPAFUNC
+   'GCC RXVMRUN  C' SourceDisk '( CMS PARM' ParmFn
+      In file included from <stdin>:30:
+      rxvmvars.h: In function `_FN0362':
+      rxvmvars.h:1547: Internal compiler error in ?, at <stdin>:902
+      Please submit a full bug report,
+      with preprocessed source if appropriate.
+      See <URL:http://gcc.gnu.org/bugs.html> for instructions.
+      Return code 12 from GCC of RXVMRUN
+   */
+
+   'GLOBAL TXTLIB MC_DECIMAL_MANUAL GCCLIB'
+   'LOAD RXVMMAIN RXVMINTP RXVMLOAD INTERRUP RXSPAWN EXITFUNC RXPAFUNC' ,
+      'RXVMRUN ( CLEAR RESET @@MAIN'
+   'GENMOD RXVM' || Debug? '( FROM RXVMMAI@'
+   Say 'RXVM' || Debug? '-V'
+   'RXVM' || Debug? '-V'
+   'COPY RXVM' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXVM' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXVM' || Debug? 'MODULE A'
+
+if 0 then do
+   /* Bare Interpreter - Bytecode Version */
+   ParmFn = 'C_IBB' || Debug?
+   'GCC RXVMMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+   'GCC RXVMINTP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMLOAD C' SourceDisk '( CMS PARM' ParmFn
+   'GCC INTERRUP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXSPAWNT C' SourceDisk '( CMS PARM' ParmFn
+   'GCC EXITFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXPAFUNC C' SourceDisk '( CMS PARM' ParmFn
+
+   'GLOBAL TXTLIB MC_DECIMAL_MANUAL GCCLIB'
+   'LOAD RXVMMAIN RXVMINTP RXVMLOAD INTERRUP RXSPAWN EXITFUNC RXPAFUNC' ,
+      'RXVMRUN ( CLEAR RESET @@MAIN'
+   'GENMOD RXBVM' || Debug? '( FROM RXVMMAI@'
+   Say 'RXBVM' || Debug? '-V'
+   'RXBVM' || Debug? '-V'
+   'COPY RXBVM' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXBVM' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXBVM' || Debug? 'MODULE A'
+
+   /* Interpreter linked to CREXX Stdlib - Threaded Version */
+   ParmFn = 'C_ICT' || Debug?
+   'GCC RXVMMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+   'GCC RXVMINTP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMLOAD C' SourceDisk '( CMS PARM' ParmFn
+   'GCC INTERRUP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXSPAWN  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC EXITFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXPAFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMRUN  C' SourceDisk '( CMS PARM' ParmFn
+
+   'GLOBAL TXTLIB MC_DECIMAL_MANUAL GCCLIB'
+   'LOAD RXVMMAIN RXVMINTP RXVMLOAD INTERRUP RXSPAWN EXITFUNC RXPAFUNC' ,
+      'RXVMRUN LIBRARY ( CLEAR RESET @@MAIN'
+   'GENMOD RXVME' || Debug? '( FROM RXVMMAI@'
+   Say 'RXVME' || Debug? '-V'
+   'RXVME' || Debug? '-V'
+   'COPY RXVME' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXVME' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXVME' || Debug? 'MODULE A'
+
+   /* Interpreter linked to CREXX Stdlib - Bytecode Version */
+   ParmFn = 'C_ICB' || Debug?
+   'GCC RXVMMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+   'GCC RXVMINTP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMLOAD C' SourceDisk '( CMS PARM' ParmFn
+   'GCC INTERRUP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXSPAWN  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC EXITFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXPAFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMRUN  C' SourceDisk '( CMS PARM' ParmFn
+
+   'GLOBAL TXTLIB MC_DECIMAL_MANUAL GCCLIB'
+   'LOAD RXVMMAIN RXVMINTP RXVMLOAD INTERRUP RXSPAWN EXITFUNC RXPAFUNC' ,
+      'RXVMRUN LIBRARY ( CLEAR RESET @@MAIN'
+   'GENMOD RXBVME' || Debug? '( FROM RXVMMAI@'
+   Say 'RXBVME' || Debug? '-V'
+   'RXBVME' || Debug? '-V'
+   'COPY RXBVME' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXBVME' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXBVME' || Debug? 'MODULE A'
+
+   /* C Library Interpreter -  to be linked to make a standalone CREXX exe - Threaded Version */
+   ParmFn = 'CREXX' || Debug?
+   'GCC RXVMMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+   'GCC RXVMINTP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMLOAD C' SourceDisk '( CMS PARM' ParmFn
+   'GCC INTERRUP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXSPAWN  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC EXITFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXPAFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMRUN  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMLIB  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVML    C' SourceDisk '( CMS PARM' ParmFn
+
+   'GLOBAL TXTLIB MC_DECIMAL_MANUAL GCCLIB'
+   'LOAD RXVMMAIN RXVMINTP RXVMLOAD INTERRUP RXSPAWN EXITFUNC RXPAFUNC' ,
+      'RXVMRUN LIBRARY ( CLEAR RESET @@MAIN'
+   'GENMOD RXVML' || Debug? '( FROM RXVMMAI@'
+   Say 'RXVML' || Debug? '-V'
+   'RXVML' || Debug? '-V'
+   'COPY RXVML' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXVML' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXVML' || Debug? 'MODULE A'
+
+   /* C Library Interpreter -  to be linked to make a standalone CREXX exe - Bytecode Version */
+   ParmFn = 'C_ISB' || Debug?
+   'GCC RXVMMAIN C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+   'GCC RXVMINTP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMLOAD C' SourceDisk '( CMS PARM' ParmFn
+   'GCC INTERRUP C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXSPAWN  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC EXITFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXPAFUNC C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMRUN  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVMLIB  C' SourceDisk '( CMS PARM' ParmFn
+   'GCC RXVML    C' SourceDisk '( CMS PARM' ParmFn
+
+   'GLOBAL TXTLIB MC_DECIMAL_MANUAL GCCLIB'
+   'LOAD RXVMMAIN RXVMINTP RXVMLOAD INTERRUP RXSPAWN EXITFUNC RXPAFUNC' ,
+      'RXVMRUN LIBRARY ( CLEAR RESET @@MAIN'
+   'GENMOD RXBVML' || Debug? '( FROM RXVMMAI@'
+   Say 'RXBVML' || Debug? '-V'
+   'RXBVML' || Debug? '-V'
+   'COPY RXBVML' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A RXBVML' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE RXBVML' || Debug? 'MODULE A'
+end
+
+   /* CREXXSAA Library */
+   ParmFn = 'CREXX' || Debug?
+
+   /* TODO
+   'GCC CREXXSAA C' SourceDisk '( CMS PARM' ParmFn
+      In file included from <stdin>:32:
+      cmsstat.h:1:2: #error This header does not exist in CMS
+      OPEN ERROR CODE '04' ON 'PDP001HD'.
+      <stdin>:47:21: dirent.h: An error has occurred
+
+      OPEN ERROR CODE '04' ON 'PDP001HD'.
+      <stdin>:49:21: unistd.h: An error has occurred
+
+      <stdin>: In function `crexxsaa_make_dir':
+      <stdin>:428: storage size of `st' isn't known
+      <stdin>: In function `crexxsaa_path_exists':
+      <stdin>:473: storage size of `st' isn't known
+      <stdin>: In function `crexxsaa_remove_tree':
+      <stdin>:509: `DIR' undeclared (first use in this function)
+      <stdin>:509: (Each undeclared identifier is reported only once
+      <stdin>:509: for each function it appears in.)
+      <stdin>:509: `dir' undeclared (first use in this function)
+      <stdin>:517: warning: assignment makes pointer from integer without a cast
+      <stdin>:519: storage size of `st' isn't known
+      <stdin>:520: dereferencing pointer to incomplete type
+      <stdin>:520: dereferencing pointer to incomplete type
+      <stdin>:522: dereferencing pointer to incomplete type
+      <stdin>: In function `crexxsaa_file_digest_read':
+      <stdin>:567: storage size of `st' isn't known
+      <stdin>: In function `crexxsaa_config_hash':
+      <stdin>:620: storage size of `st' isn't known
+      <stdin>: In function `crexxsaa_canonical_path':
+      <stdin>:665: warning: comparison between pointer and integer
+      Return code 12 from GCC of CREXXSAA
+
+   /* CREXXSAA Tool */
+   'GCC CSAATOOL C' SourceDisk '( CMS PARM' ParmFn 'CSECT'
+      In file included from <stdin>:29:
+      cmsstat.h:1:2: #error This header does not exist in CMS
+      OPEN ERROR CODE '04' ON 'PDP001HD'.
+      <stdin>:40:21: dirent.h: An error has occurred
+
+      OPEN ERROR CODE '04' ON 'PDP001HD'.
+      <stdin>:42:21: unistd.h: An error has occurred
+
+      <stdin>: In function `crexxsaa_tool_path_exists':
+      <stdin>:109: storage size of `st' isn't known
+      <stdin>: In function `crexxsaa_tool_print_entry':
+      <stdin>:159: storage size of `st' isn't known
+      <stdin>: In function `crexxsaa_tool_list_cache':
+      <stdin>:238: `DIR' undeclared (first use in this function)
+      <stdin>:238: (Each undeclared identifier is reported only once
+      <stdin>:238: for each function it appears in.)
+      <stdin>:238: `dir' undeclared (first use in this function)
+      <stdin>:245: warning: assignment makes pointer from integer without a cast
+      <stdin>:249: storage size of `st' isn't known
+      <stdin>:251: dereferencing pointer to incomplete type
+      <stdin>:251: dereferencing pointer to incomplete type
+      <stdin>:253: dereferencing pointer to incomplete type
+      <stdin>:265: dereferencing pointer to incomplete type
+      Return code 12 from GCC of CSAATOOL
+
+   'GLOBAL TXTLIB CREXXSAA GCCLIB'
+   'LOAD CSAATOOL ( CLEAR RESET @@MAIN'
+   'GENMOD CSAATL' || Debug? '( FROM CSAATOO@'
+   Say 'CSAATL' || Debug? '-V'
+   'CSAATL' || Debug? '-V'
+   'COPY CSAATL' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A CSAATL' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE CSAATL' || Debug? 'MODULE A'
+   */
+
+Return
+
+
+BuildRxPA: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
+
+   /* TODO
+   'GCC RXPA     C' SourceDisk '( CMS PARM' ParmFn
+      <stdin>:34:32: dlfcn.h: An error has occurred
+
+      <stdin>: In function `_FN0373':
+      <stdin>:137: `RTLD_LAZY' undeclared (first use in this function)
+      <stdin>:137: (Each undeclared identifier is reported only once
+      <stdin>:137: for each function it appears in.)
+      <stdin>:137: warning: initialization makes pointer from integer without a cast
+      Return code 12 from GCC of RXPA
+   */
+
+Return
+
+
+BuildBin: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+
+   'RXC -i "./bin; ./lib/plugins/system" -o ./crexx CREXX'
+   'RXAS CREXX'
+   'RXLINK -s -o CREXX_LINKED crexx ./bin/library'
+   'RXCPACK -o CREXX CREXX_LINKED'
+
+Return
+
+
+BuildCRexxDriver: Procedure
+   Arg Debug?, SourceDisk, BinaryDisk
+   ParmFn = 'CREXX' || Debug?
+
+   'RXC -i "bin;lib/plugins/system" -o crexx CREXX'
+   'RXAS CREXX'
+   'RXLINK -s -o crexx_linked crexx bin/library'
+   'RXCPACK -o crexx crexx_linked'
+   'GCC CREXX C A ( CMS PARM' ParmFn 'CSECT'
+
+   'GLOBAL TXTLIB GCCLIB'
+   'LOAD CREXX'
+   'GENMOD CREXX' || Debug? '( FROM CREXX@@@'
+   Say 'CREXX' || Debug? '-V'
+   'CREXX' || Debug? '-V'
+   'COPY CREXX' || Debug? 'MODULE A = =' BinaryDisk '( OLDDATE REPLACE'
+   'COPY LOAD MAP A CREXX' || Debug? '=' BinaryDisk '( OLDDATE REPLACE'
+   'ERASE CREXX' || Debug? 'MODULE A'
+
+Return
+
+
+Test: Procedure
+   Arg SourceDisk
+
+   Say 'RX COMPILE'
+   'RXC -V'
+
+   Say 'RX ASSEMBLE'
+   'RXAS -V'
+   'RXAS -I'
+   'RXAS -A'
+
+   /* Panic - toDo */
+   Say 'RX DISASSEMBLE'
+   'RXDAS -V'
+
+   /* Out of memory - toDo */
+   Say 'RX RUN'
+   'RXBVM -V'
+
+   /* Tests */
+   /* Panic - toDo */
+   'RXAS -L' SourceDisk 'ASCOMMON'
+
+   /* Out of memory - toDo */
+   'RXBVM -L' SourceDisk 'ASCOMMON'
+
+   /* Panic - toDo */
+   'RXAS -L' SourceDisk 'ASEBCDIC'
+
+   /* Out of memory - toDo */
+   'RXBVM -L' SourceDisk 'ASEBCDIC'
+
+   /* Panic - toDo */
+   'RXC -L' SourceDisk 'BASIC'
+
+   /* Panic - toDo */
+   'RXAS -L' SourceDisk 'BASIC'
+
+   /* Out of memory - toDo */
+   'RXBVM -L' SourceDisk 'BASIC'
+
+Return

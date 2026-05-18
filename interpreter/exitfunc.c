@@ -29,13 +29,13 @@
 #include "rxpa.h"
 
 // Function Prototypes
-void say_exit_default(char* message); // Default say exit function
+static void say_exit_default(char* message); // Default say exit function
 
 // Global Variables
 say_exit_func say_exit = say_exit_default;
 
 /* Default Say Exit Function - prints to stdout */
-void say_exit_default(char* message) {
+static void say_exit_default(char* message) {
     /* Print the message to stdout without a newline or any formatting */
     printf("%s", message);
     // Flush

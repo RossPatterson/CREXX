@@ -154,7 +154,7 @@ static value* node_to_value(ASTNode* node) {
                 v.string_length = node->node_string_length;
                 v.string_buffer_length = v.string_length;
                 v.string_pos = 0;
-#ifdef NUTF8
+#ifndef NUTF8
                 v.string_chars = utf8nlen(v.string_value, v.string_length); /* SLOW! */
                 v.string_char_pos = 0;
 #endif

@@ -28,6 +28,12 @@
 #ifndef CREXX_RXASASSM_H
 #define CREXX_RXASASSM_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 2
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "crexx_version.h"
 #include "rxas.h"
 #include "rxasgrmr.h"

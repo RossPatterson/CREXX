@@ -6,3 +6,8 @@ set(CMAKE_C_STANDARD 90)
 
 add_library(platform platform.h platform.c)
 target_include_directories(platform PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# add_executable(spltpar spltpar.c)
+# target_include_directories(spltpar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+

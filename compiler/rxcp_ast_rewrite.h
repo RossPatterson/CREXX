@@ -25,6 +25,12 @@
 #ifndef CREXX_RXCP_AST_REWRITE_H
 #define CREXX_RXCP_AST_REWRITE_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 5
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "rxcpmain.h"
 
 /*

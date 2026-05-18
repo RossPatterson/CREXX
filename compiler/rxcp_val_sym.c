@@ -29,7 +29,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "utf.h"
+#ifdef NUTF8
+#   include "utf.h"
+#endif
 #include "rxcp_val.h"
 
 static char *build_factory_symbol_name(ASTNode *node) {

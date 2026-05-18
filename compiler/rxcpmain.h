@@ -29,6 +29,12 @@
 #ifndef CREXX_RXCPMAIN_H
 #define CREXX_RXCPMAIN_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 3
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "rxcp_types.h"
 #include "rxcp_util.h"
 #include "rxcp_token.h"

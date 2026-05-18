@@ -30,6 +30,12 @@
 #define CREXX_PLATFORM_H
 #define MAXFILEPATH 4096
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 21
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include <stdio.h>
 #include "crexx_license.h"
 

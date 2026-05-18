@@ -57,6 +57,12 @@
  * would be truncated to integers *before* the division.
  */
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 26
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,7 +70,9 @@
 #include <windows.h>
 #include <io.h>
 #else
-#include <fcntl.h>
+#  ifndef __CMS__
+#    include <fcntl.h>
+#  endif
 #endif
 #ifdef __APPLE__
 #include <mach/thread_policy.h>
@@ -87,7 +95,27 @@
 #include "rxvmplugin_framework.h"
 #include "rxvmsock.h"
 
+#ifdef __CMS__
+#  ifndef __SPLIT_RXVMINTP__
+#    error Do not compile the full interpreter under CMS.
+#    define __SPLIT_RXVMINTP__ -1
+#  endif
+#endif
+
+#ifndef __SPLIT_RXVMINTP__
+  /* Values: -1=invalid config; 0=not split; 1=compiling rxvmin1.c; 2=compiling rxvmin2.C */
+#  define __SPLIT_RXVMINTP__ 0
+#endif
+
+#if __SPLIT_RXVMINTP__ == 0
+#  define MAYBE_STATIC static
+#else
+#  define MAYBE_STATIC
+#endif
+
 int rxvm_link(rxvm_context *ctx);
+
+#define ASCII_FAST_PATH 1    // 1. activate ASCII fast path, 0: run normal mode
 
 /* This defines the expected max number of args - if a call has more args than
  * this then an oversized block will be malloced
@@ -99,20 +127,165 @@ int rxvm_link(rxvm_context *ctx);
 #undef SAFE_RECYCLED_STACKFRAMES
 
 /* Misc. Utilities here */
-static string_constant *get_runtime_string_constant(module *mod, size_t offset);
+MAYBE_STATIC string_constant *get_runtime_string_constant(module *mod, size_t offset);
 
-static value *decimal_literal_value(decplugin *decimal, const char *literal) {
+#if __SPLIT_RXVMINTP__ >= 0
+int rxvm_link(rxvm_context *ctx);
+
+typedef enum runtime_contract_kind {
+    RUNTIME_CONTRACT_UNKNOWN = 0,
+    RUNTIME_CONTRACT_CLASS,
+    RUNTIME_CONTRACT_INTERFACE
+} runtime_contract_kind;
+
+typedef struct rxvm_source_context {
+    string_constant *file;
+    string_constant *source;
+    size_t line;
+    size_t column;
+} rxvm_source_context;
+
+typedef enum rxsignal_handler_action {
+    RXSIGNAL_HANDLER_ACTION_NONE = 0,
+    RXSIGNAL_HANDLER_ACTION_SKIP,
+    RXSIGNAL_HANDLER_ACTION_FAIL,
+    RXSIGNAL_HANDLER_ACTION_RETRY
+} rxsignal_handler_action;
+
+MAYBE_STATIC value *decimal_literal_value(decplugin *decimal, const char *literal);
+MAYBE_STATIC void free_decimal_literal_value(value *literal_value);
+MAYBE_STATIC char *build_runtime_member_name(const char *class_name, size_t class_name_length,
+                                       const char *member_name, size_t member_name_length);
+MAYBE_STATIC proc_runtime *resolve_runtime_procedure(rxvm_context *context, const char *proc_name, size_t proc_name_length);
+MAYBE_STATIC int compare_runtime_name(const char *left, size_t left_length,
+                                const char *right, size_t right_length);
+MAYBE_STATIC char *dup_runtime_name(const char *name, size_t name_length);
+MAYBE_STATIC char *build_interface_factory_error(const char *prefix,
+                                           const char *interface_name,
+                                           size_t interface_name_length);
+MAYBE_STATIC int runtime_type_name_is_builtin(const char *type_name, size_t type_name_length);
+MAYBE_STATIC char *runtime_normalize_type_name(const char *type_name, size_t type_name_length);
+MAYBE_STATIC char *runtime_internal_type_to_source_name(const char *type_name, size_t type_name_length);
+MAYBE_STATIC runtime_contract_kind runtime_lookup_contract_kind(rxvm_context *context,
+                                                          const char *type_name,
+                                                          size_t type_name_length);
+MAYBE_STATIC int runtime_class_implements_interface(rxvm_context *context,
+                                              const char *class_name,
+                                              size_t class_name_length,
+                                              const char *interface_name,
+                                              size_t interface_name_length);
+MAYBE_STATIC int runtime_value_matches_object_type(rxvm_context *context,
+                                             value *object_value,
+                                             const char *type_name,
+                                             size_t type_name_length);
+MAYBE_STATIC char *build_runtime_cast_error(value *object_value,
+                                      const char *target_type_name,
+                                      size_t target_type_name_length);
+MAYBE_STATIC void clear_runtime_interface_factories(rxvm_context *context);
+MAYBE_STATIC void clear_runtime_interface_methods(rxvm_context *context);
+MAYBE_STATIC int runtime_member_kind_is_method(const string_constant *kind_symbol);
+MAYBE_STATIC int runtime_member_kind_is_final(const string_constant *kind_symbol);
+MAYBE_STATIC string_constant *get_runtime_string_constant(module *mod, size_t offset);
+MAYBE_STATIC void resolve_runtime_source_context(module *mod, size_t address, rxvm_source_context *source_context);
+MAYBE_STATIC void print_runtime_panic_location(rxvm_context *context, rxinteger module_number, rxinteger address);
+MAYBE_STATIC char *build_runtime_factory_proc_name(const char *class_name,
+                                             size_t class_name_length,
+                                             const char *factory_name,
+                                             size_t factory_name_length);
+MAYBE_STATIC char *build_runtime_match_proc_name(const char *class_name,
+                                           size_t class_name_length,
+                                           const char *factory_name,
+                                           size_t factory_name_length);
+MAYBE_STATIC int invoke_runtime_factory_match(rxvm_context *context,
+                                        proc_runtime *match_proc,
+                                        rxinteger argc,
+                                        value **args,
+                                        rxinteger *score_out);
+MAYBE_STATIC int add_runtime_interface_factory_entry(rxvm_context *context,
+                                               const char *interface_name,
+                                               size_t interface_name_length,
+                                               const char *factory_name,
+                                               size_t factory_name_length,
+                                               const char *class_name,
+                                               size_t class_name_length,
+                                               proc_runtime *match_proc,
+                                               proc_runtime *factory_proc);
+MAYBE_STATIC int add_runtime_interface_method_entry(rxvm_context *context,
+                                              const char *class_name,
+                                              size_t class_name_length,
+                                              const char *member_name,
+                                              size_t member_name_length,
+                                              proc_runtime *method_proc);
+MAYBE_STATIC proc_runtime *resolve_runtime_method(rxvm_context *context,
+                                            const char *class_name,
+                                            size_t class_name_length,
+                                            const char *member_name,
+                                            size_t member_name_length);
+MAYBE_STATIC void parse_runtime_factory_selector(const char *selector,
+                                           size_t selector_length,
+                                           const char **interface_name,
+                                           size_t *interface_name_length,
+                                           const char **factory_name,
+                                           size_t *factory_name_length);
+MAYBE_STATIC int resolve_runtime_factory(rxvm_context *context,
+                                   const char *selector,
+                                   size_t selector_length,
+                                   rxinteger argc,
+                                   value **args,
+                                   proc_runtime **factory_out,
+                                   char **error_out);
+RX_INLINE rxinteger ipow(rxinteger base, rxinteger exp_int);
+MAYBE_STATIC const char *interrupt_to_string(unsigned char interrupt);
+MAYBE_STATIC unsigned char string_to_interrupt(const char *interrupt);
+MAYBE_STATIC value *rxsignal_handler_payload(stack_frame *handler_frame);
+MAYBE_STATIC void rxsignal_apply_native_interrupt_mode(unsigned char sig, interrupt_entry *entry);
+MAYBE_STATIC void rxsignal_push_handler(stack_frame *frame, unsigned char sig);
+MAYBE_STATIC int rxsignal_pop_handler(stack_frame *frame, unsigned char sig);
+MAYBE_STATIC void rxsignal_clear_handler_stack(stack_frame *frame);
+RX_INLINE stack_frame *frame_f(
+                    proc_runtime *procedure,
+                    int no_args,
+                    stack_frame *parent,
+                    bin_code *return_pc,
+                    value *return_reg);
+RX_INLINE void clear_frame(stack_frame *frame);
+RX_INLINE void free_frame(stack_frame *frame);
+MAYBE_STATIC stack_frame *rxsignal_unwind_to_frame(stack_frame *current, stack_frame *target);
+MAYBE_STATIC void rxsignal_populate_raw_interrupt(value *raw,
+                                            unsigned char interrupt,
+                                            rxinteger module,
+                                            rxinteger address,
+                                            value *payload);
+MAYBE_STATIC void rxsignal_populate_runtime_signal(value *dest, value *raw);
+#if  ASCII_FAST_PATH
+RX_INLINE rxinteger ascii_fwd_nonblank(const unsigned char *s, rxinteger start, rxinteger len);
+RX_INLINE rxinteger ascii_back_nonblank( unsigned char *s, rxinteger start, rxinteger len);
+RX_INLINE rxinteger ascii_fwd_blank(const unsigned char *s, rxinteger start, rxinteger len);
+RX_INLINE rxinteger ascii_back_blank( unsigned char *s, rxinteger start, rxinteger len);
+#endif
+RX_FLATTEN int run(rxvm_context *context, int argc, char *argv[]);
+#endif
+
+// Bit field of raised VM interrupts (checked by the interpreter)
+#if __SPLIT_RXVMINTP__ < 2
+MAYBE_STATIC volatile sig_atomic_t interrupts = 0;
+#else
+extern volatile sig_atomic_t interrupts;
+#endif
+
+#if __SPLIT_RXVMINTP__ < 2
+MAYBE_STATIC value *decimal_literal_value(decplugin *decimal, const char *literal) {
     value *literal_value = value_f();
     decimal->decimalFromString(decimal, literal_value, literal);
     return literal_value;
 }
 
-static void free_decimal_literal_value(value *literal_value) {
+MAYBE_STATIC void free_decimal_literal_value(value *literal_value) {
     clear_value(literal_value);
     free(literal_value);
 }
 
-static char *build_runtime_member_name(const char *class_name, size_t class_name_length,
+MAYBE_STATIC char *build_runtime_member_name(const char *class_name, size_t class_name_length,
                                        const char *member_name, size_t member_name_length) {
     char *proc_name;
 
@@ -127,7 +300,7 @@ static char *build_runtime_member_name(const char *class_name, size_t class_name
     return proc_name;
 }
 
-static proc_runtime *resolve_runtime_procedure(rxvm_context *context, const char *proc_name, size_t proc_name_length) {
+MAYBE_STATIC proc_runtime *resolve_runtime_procedure(rxvm_context *context, const char *proc_name, size_t proc_name_length) {
     size_t mod_index;
 
     for (mod_index = 0; mod_index < context->num_modules; mod_index++) {
@@ -156,7 +329,7 @@ static proc_runtime *resolve_runtime_procedure(rxvm_context *context, const char
     return 0;
 }
 
-static int compare_runtime_name(const char *left, size_t left_length,
+MAYBE_STATIC int compare_runtime_name(const char *left, size_t left_length,
                                 const char *right, size_t right_length) {
     size_t min_length;
     int cmp;
@@ -173,7 +346,7 @@ static int compare_runtime_name(const char *left, size_t left_length,
     return 0;
 }
 
-static char *dup_runtime_name(const char *name, size_t name_length) {
+MAYBE_STATIC char *dup_runtime_name(const char *name, size_t name_length) {
     char *copy;
 
     copy = malloc(name_length + 1);
@@ -184,7 +357,7 @@ static char *dup_runtime_name(const char *name, size_t name_length) {
     return copy;
 }
 
-static char *build_interface_factory_error(const char *prefix,
+MAYBE_STATIC char *build_interface_factory_error(const char *prefix,
                                            const char *interface_name,
                                            size_t interface_name_length) {
     size_t prefix_length;
@@ -200,7 +373,7 @@ static char *build_interface_factory_error(const char *prefix,
     return buffer;
 }
 
-static int runtime_type_name_is_builtin(const char *type_name, size_t type_name_length) {
+MAYBE_STATIC int runtime_type_name_is_builtin(const char *type_name, size_t type_name_length) {
     static const char *builtins[] = {
             ".boolean", ".int", ".float", ".decimal", ".string",
             ".binary", ".object", ".void", ".unknown", 0
@@ -219,7 +392,7 @@ static int runtime_type_name_is_builtin(const char *type_name, size_t type_name_
     return 0;
 }
 
-static char *runtime_normalize_type_name(const char *type_name, size_t type_name_length) {
+MAYBE_STATIC char *runtime_normalize_type_name(const char *type_name, size_t type_name_length) {
     size_t i;
     size_t out_length;
     char *normalized;
@@ -252,7 +425,7 @@ static char *runtime_normalize_type_name(const char *type_name, size_t type_name
     return normalized;
 }
 
-static char *runtime_internal_type_to_source_name(const char *type_name, size_t type_name_length) {
+MAYBE_STATIC char *runtime_internal_type_to_source_name(const char *type_name, size_t type_name_length) {
     size_t dots = 0;
     size_t i;
     char *source_name;
@@ -284,14 +457,10 @@ static char *runtime_internal_type_to_source_name(const char *type_name, size_t 
 
     return source_name;
 }
+#endif
 
-typedef enum runtime_contract_kind {
-    RUNTIME_CONTRACT_UNKNOWN = 0,
-    RUNTIME_CONTRACT_CLASS,
-    RUNTIME_CONTRACT_INTERFACE
-} runtime_contract_kind;
-
-static runtime_contract_kind runtime_lookup_contract_kind(rxvm_context *context,
+#if __SPLIT_RXVMINTP__ < 2
+MAYBE_STATIC runtime_contract_kind runtime_lookup_contract_kind(rxvm_context *context,
                                                           const char *type_name,
                                                           size_t type_name_length) {
     size_t mod_index;
@@ -330,7 +499,7 @@ static runtime_contract_kind runtime_lookup_contract_kind(rxvm_context *context,
     return RUNTIME_CONTRACT_UNKNOWN;
 }
 
-static int runtime_class_implements_interface(rxvm_context *context,
+MAYBE_STATIC int runtime_class_implements_interface(rxvm_context *context,
                                               const char *class_name,
                                               size_t class_name_length,
                                               const char *interface_name,
@@ -367,7 +536,7 @@ static int runtime_class_implements_interface(rxvm_context *context,
     return 0;
 }
 
-static int runtime_value_matches_object_type(rxvm_context *context,
+MAYBE_STATIC int runtime_value_matches_object_type(rxvm_context *context,
                                              value *object_value,
                                              const char *type_name,
                                              size_t type_name_length) {
@@ -413,7 +582,7 @@ static int runtime_value_matches_object_type(rxvm_context *context,
     return matches;
 }
 
-static char *build_runtime_cast_error(value *object_value,
+MAYBE_STATIC char *build_runtime_cast_error(value *object_value,
                                       const char *target_type_name,
                                       size_t target_type_name_length) {
     char *target_source_name;
@@ -446,7 +615,7 @@ static char *build_runtime_cast_error(value *object_value,
     return buffer;
 }
 
-static void clear_runtime_interface_factories(rxvm_context *context) {
+MAYBE_STATIC void clear_runtime_interface_factories(rxvm_context *context) {
     size_t i;
 
     if (!context || !context->interface_factories) {
@@ -469,7 +638,7 @@ static void clear_runtime_interface_factories(rxvm_context *context) {
     context->interface_factory_capacity = 0;
 }
 
-static void clear_runtime_interface_methods(rxvm_context *context) {
+MAYBE_STATIC void clear_runtime_interface_methods(rxvm_context *context) {
     size_t i;
 
     if (!context || !context->interface_methods) {
@@ -491,12 +660,12 @@ static void clear_runtime_interface_methods(rxvm_context *context) {
     context->interface_method_capacity = 0;
 }
 
-static int runtime_member_kind_is_method(const string_constant *kind_symbol) {
+MAYBE_STATIC int runtime_member_kind_is_method(const string_constant *kind_symbol) {
     if (!kind_symbol || kind_symbol->string_len < 6) return 0;
     return memcmp(kind_symbol->string, "method", 6) == 0;
 }
 
-static int runtime_member_kind_is_final(const string_constant *kind_symbol) {
+MAYBE_STATIC int runtime_member_kind_is_final(const string_constant *kind_symbol) {
     static const char final_flag[] = "final";
     size_t i;
 
@@ -512,7 +681,7 @@ static int runtime_member_kind_is_final(const string_constant *kind_symbol) {
     return 0;
 }
 
-static string_constant *get_runtime_string_constant(module *mod, size_t offset) {
+MAYBE_STATIC string_constant *get_runtime_string_constant(module *mod, size_t offset) {
     string_constant *entry;
 
     if (!mod || offset >= mod->segment.const_size) return 0;
@@ -520,15 +689,10 @@ static string_constant *get_runtime_string_constant(module *mod, size_t offset) 
     if (entry->base.type != STRING_CONST) return 0;
     return entry;
 }
+#endif
 
-typedef struct rxvm_source_context {
-    string_constant *file;
-    string_constant *source;
-    size_t line;
-    size_t column;
-} rxvm_source_context;
-
-static void resolve_runtime_source_context(module *mod, size_t address, rxvm_source_context *source_context) {
+#if __SPLIT_RXVMINTP__ < 2
+MAYBE_STATIC void resolve_runtime_source_context(module *mod, size_t address, rxvm_source_context *source_context) {
     int meta_ix;
 
     source_context->file = 0;
@@ -557,7 +721,7 @@ static void resolve_runtime_source_context(module *mod, size_t address, rxvm_sou
     }
 }
 
-static void print_runtime_panic_location(rxvm_context *context, rxinteger module_number, rxinteger address) {
+MAYBE_STATIC void print_runtime_panic_location(rxvm_context *context, rxinteger module_number, rxinteger address) {
     module *mod;
     rxvm_source_context source_context;
     size_t module_index;
@@ -589,7 +753,7 @@ static void print_runtime_panic_location(rxvm_context *context, rxinteger module
     }
 }
 
-static char *build_runtime_factory_proc_name(const char *class_name,
+MAYBE_STATIC char *build_runtime_factory_proc_name(const char *class_name,
                                              size_t class_name_length,
                                              const char *factory_name,
                                              size_t factory_name_length) {
@@ -618,7 +782,7 @@ static char *build_runtime_factory_proc_name(const char *class_name,
     return proc_name;
 }
 
-static char *build_runtime_match_proc_name(const char *class_name,
+MAYBE_STATIC char *build_runtime_match_proc_name(const char *class_name,
                                            size_t class_name_length,
                                            const char *factory_name,
                                            size_t factory_name_length) {
@@ -647,7 +811,7 @@ static char *build_runtime_match_proc_name(const char *class_name,
     return proc_name;
 }
 
-static int invoke_runtime_factory_match(rxvm_context *context,
+MAYBE_STATIC int invoke_runtime_factory_match(rxvm_context *context,
                                         proc_runtime *match_proc,
                                         rxinteger argc,
                                         value **args,
@@ -694,7 +858,7 @@ static int invoke_runtime_factory_match(rxvm_context *context,
     return 1;
 }
 
-static int add_runtime_interface_factory_entry(rxvm_context *context,
+MAYBE_STATIC int add_runtime_interface_factory_entry(rxvm_context *context,
                                                const char *interface_name,
                                                size_t interface_name_length,
                                                const char *factory_name,
@@ -744,7 +908,7 @@ static int add_runtime_interface_factory_entry(rxvm_context *context,
     return 1;
 }
 
-static int add_runtime_interface_method_entry(rxvm_context *context,
+MAYBE_STATIC int add_runtime_interface_method_entry(rxvm_context *context,
                                               const char *class_name,
                                               size_t class_name_length,
                                               const char *member_name,
@@ -910,7 +1074,7 @@ void rxvm_rebuild_interface_method_registry(rxvm_context *context) {
     }
 }
 
-static proc_runtime *resolve_runtime_method(rxvm_context *context,
+MAYBE_STATIC proc_runtime *resolve_runtime_method(rxvm_context *context,
                                             const char *class_name,
                                             size_t class_name_length,
                                             const char *member_name,
@@ -1054,7 +1218,7 @@ void rxvm_rebuild_interface_factory_registry(rxvm_context *context) {
     }
 }
 
-static void parse_runtime_factory_selector(const char *selector,
+MAYBE_STATIC void parse_runtime_factory_selector(const char *selector,
                                            size_t selector_length,
                                            const char **interface_name,
                                            size_t *interface_name_length,
@@ -1090,7 +1254,7 @@ static void parse_runtime_factory_selector(const char *selector,
     if (factory_name_length) *factory_name_length = selector_length - ((size_t) (sep - selector_start) + 2);
 }
 
-static int resolve_runtime_factory(rxvm_context *context,
+MAYBE_STATIC int resolve_runtime_factory(rxvm_context *context,
                                    const char *selector,
                                    size_t selector_length,
                                    rxinteger argc,
@@ -1193,6 +1357,7 @@ static int resolve_runtime_factory(rxvm_context *context,
     return 1;
 }
 
+#ifndef __CMS__
 /* Constant to get create the compile time data in ta "iso" like format */
 /* __DATE__ format "Mmm dd yyyy" -> Convert to yyyymmdd */
 const char compile_date[8+1] =
@@ -1224,6 +1389,7 @@ const char compile_date[8+1] =
 
                 '\0'
         };
+#endif
 
 /* Fast integer pow calculation - loop unwound - based / from https://gist.github.com/orlp/3551590
  * by Orson Peters / orlp / Leiden, Netherlands / orsonpeters@gmail.com
@@ -1401,15 +1567,10 @@ unsigned char string_to_interrupt(const char *interrupt) {
     if (strcmp(interrupt, "OTHER") == 0) return RXSIGNAL_OTHER;
     return RXSIGNAL_MAX; // Invalid Signal Code
 }
+#endif
 
-typedef enum rxsignal_handler_action {
-    RXSIGNAL_HANDLER_ACTION_NONE = 0,
-    RXSIGNAL_HANDLER_ACTION_SKIP,
-    RXSIGNAL_HANDLER_ACTION_FAIL,
-    RXSIGNAL_HANDLER_ACTION_RETRY
-} rxsignal_handler_action;
-
-static rxsignal_handler_action rxsignal_read_handler_action(value *action) {
+#if __SPLIT_RXVMINTP__ < 2
+MAYBE_STATIC rxsignal_handler_action rxsignal_read_handler_action(value *action) {
     if (!action || action->string_length <= 0) return RXSIGNAL_HANDLER_ACTION_NONE;
 
     null_terminate_string_buffer(action);
@@ -1419,7 +1580,7 @@ static rxsignal_handler_action rxsignal_read_handler_action(value *action) {
     return RXSIGNAL_HANDLER_ACTION_NONE;
 }
 
-static value *rxsignal_handler_payload(stack_frame *handler_frame) {
+MAYBE_STATIC value *rxsignal_handler_payload(stack_frame *handler_frame) {
     size_t arg_index;
     value *arg;
 
@@ -1431,7 +1592,7 @@ static value *rxsignal_handler_payload(stack_frame *handler_frame) {
     return arg->attributes[4];
 }
 
-static void rxsignal_apply_native_interrupt_mode(unsigned char sig, interrupt_entry *entry) {
+MAYBE_STATIC void rxsignal_apply_native_interrupt_mode(unsigned char sig, interrupt_entry *entry) {
     if (!entry || sig == 0 || sig >= RXSIGNAL_MAX) return;
     if (entry->response == RXSIGNAL_RESPONSE_IGNORE) {
         if (sig != RXSIGNAL_KILL) ignore_interrupt((int)sig);
@@ -1440,7 +1601,7 @@ static void rxsignal_apply_native_interrupt_mode(unsigned char sig, interrupt_en
     }
 }
 
-static void rxsignal_push_handler(stack_frame *frame, unsigned char sig) {
+MAYBE_STATIC void rxsignal_push_handler(stack_frame *frame, unsigned char sig) {
     interrupt_saved_entry *saved;
 
     if (!frame || sig == 0 || sig >= RXSIGNAL_MAX) return;
@@ -1453,7 +1614,7 @@ static void rxsignal_push_handler(stack_frame *frame, unsigned char sig) {
     frame->interrupt_stack = saved;
 }
 
-static int rxsignal_pop_handler(stack_frame *frame, unsigned char sig) {
+MAYBE_STATIC int rxsignal_pop_handler(stack_frame *frame, unsigned char sig) {
     interrupt_saved_entry *saved;
     interrupt_saved_entry *previous;
 
@@ -1477,7 +1638,7 @@ static int rxsignal_pop_handler(stack_frame *frame, unsigned char sig) {
     return 0;
 }
 
-static void rxsignal_clear_handler_stack(stack_frame *frame) {
+MAYBE_STATIC void rxsignal_clear_handler_stack(stack_frame *frame) {
     if (!frame) return;
     while (frame->interrupt_stack) {
         rxsignal_pop_handler(frame, frame->interrupt_stack->signal);
@@ -1676,7 +1837,7 @@ RX_INLINE void free_frame(stack_frame *frame) {
     *(frame->procedure->frame_free_list) = frame;
 }
 
-static stack_frame *rxsignal_unwind_to_frame(stack_frame *current, stack_frame *target) {
+MAYBE_STATIC stack_frame *rxsignal_unwind_to_frame(stack_frame *current, stack_frame *target) {
     stack_frame *discard;
 
     if (!target) return current;
@@ -1690,7 +1851,7 @@ static stack_frame *rxsignal_unwind_to_frame(stack_frame *current, stack_frame *
     return current ? current : target;
 }
 
-static void rxsignal_populate_raw_interrupt(value *raw,
+MAYBE_STATIC void rxsignal_populate_raw_interrupt(value *raw,
                                             unsigned char interrupt,
                                             rxinteger module,
                                             rxinteger address,
@@ -1704,7 +1865,7 @@ static void rxsignal_populate_raw_interrupt(value *raw,
     move_value(raw->attributes[4], payload);
 }
 
-static void rxsignal_populate_runtime_signal(value *dest, value *raw) {
+MAYBE_STATIC void rxsignal_populate_runtime_signal(value *dest, value *raw) {
     static char runtime_signal_type[] = "rxfnsb.runtime_signal";
 
     value_zero(dest);
@@ -1720,9 +1881,6 @@ void completely_free_frame(stack_frame *frame) {
     free(frame);
 }
 
-// Bit field of raised VM interrupts (checked by the interpreter)
-static volatile sig_atomic_t interrupts = 0;
-
 // Function to set an interrupt
 void raise_signal(unsigned char signal) {
     interrupts |= 1 << (signal - 1);
@@ -1732,6 +1890,7 @@ void raise_signal(unsigned char signal) {
 void clear_signal(unsigned char signal) {
     interrupts &= ~(1 << (signal - 1));
 }
+#endif
 
 // Macro to detect and throw a signal if a RXVM plugin-raised error is present
 #define RXSIGNAL_IF_RXVM_PLUGIN_ERROR(signal) \
@@ -1779,6 +1938,7 @@ else { SET_SIGNAL_PAYLOAD(signal__, (payload)); } }
 // Macro and function to detect and throw a signal if a RXPA plugin-raised error is present
 #define INTERRUPT_FROM_RXPA_SIGNAL(signal) if ((signal)->int_value || (signal)->string_length) { if (!current_frame->is_interrupt) interrupted_pc = pc; interrupt_from_rxpa_signal(signal,interrupt_object); }
 
+#if __SPLIT_RXVMINTP__ < 2
 void interrupt_from_rxpa_signal(value *signal, value* interrupt_object[RXSIGNAL_MAX]) {
     size_t int_num;
 
@@ -1801,6 +1961,7 @@ void interrupt_from_rxpa_signal(value *signal, value* interrupt_object[RXSIGNAL_
     // Set the interrupt
     interrupts |= 1 << (int_num - 1);
 }
+#endif
 
 #define HANDLE_INTERRUPT_ACTION_RETURN() \
 if (is_interrupt && temp_frame->is_interrupt_action) { \
@@ -1843,12 +2004,12 @@ if (is_interrupt && temp_frame->is_interrupt_action) { \
     (cp) == 0x205F || \
     (cp) == 0x3000 )
 
+#if __SPLIT_RXVMINTP__ < 2
 /* -------------------------------------------------------------------------
  * Inline helper: forward ASCII non-blank scan.
  * Returns index (0-based) of first non-blank, or -len if none found.
  * -------------------------------------------------------------------------
  */
-#define ASCII_FAST_PATH 1    // 1. activate ASCII fast path, 0: run normal mode
 #if  ASCII_FAST_PATH
 RX_INLINE rxinteger ascii_fwd_nonblank(const unsigned char *s, rxinteger start, rxinteger len) {
     rxinteger i;
@@ -1890,7 +2051,9 @@ RX_INLINE rxinteger ascii_back_blank( unsigned char *s, rxinteger start, rxinteg
     return -1;  /* Not found in reverse scan */
 }
 #endif
+#endif
 
+#if __SPLIT_RXVMINTP__ == 0 || __SPLIT_RXVMINTP__ == 2
 /* Interpreter */
 RX_FLATTEN int run(rxvm_context *context, int argc, char *argv[]) {
     proc_runtime *procedure;
@@ -3111,7 +3274,7 @@ START_OF_INSTRUCTIONS
 #endif
             }
             DISPATCH
-	      
+
         START_INSTRUCTION(SAY_REG) CALC_DISPATCH(1)
             DEBUG("TRACE - SAY R%lu\n", REG_IDX(1));
             rxvm_mprintf("%.*s\n", (int) op1R->string_length, op1R->string_value);
@@ -3122,13 +3285,13 @@ START_OF_INSTRUCTIONS
                   (int) op1S->string_len, op1S->string);
             rxvm_mprintf("%.*s\n", (int) op1S->string_len, op1S->string);
             DISPATCH
-	      
+
         START_INSTRUCTION(SAYX_REG) CALC_DISPATCH(1)
             DEBUG("TRACE - SAYX R%lu\n", REG_IDX(1));
             rxvm_mprintf("%.*s", (int) op1R->string_length, op1R->string_value);
             DISPATCH
-	      
-	START_INSTRUCTION(SAYX_STRING) CALC_DISPATCH(1)
+
+        START_INSTRUCTION(SAYX_STRING) CALC_DISPATCH(1)
             DEBUG("TRACE - SAYX \"%.*s\"\n",
                   (int) op1S->string_len, op1S->string);
             rxvm_mprintf("%.*s", (int) op1S->string_len, op1S->string);
@@ -4929,7 +5092,7 @@ START_INSTRUCTION(SETNUMFUZ_INT) CALC_DISPATCH(1)
                 rxinteger tm;
                 struct timeval tv;
                 //struct timezone tz;
-                time_t	ctime;
+                time_t ctime;
                 struct tm *tmdata;
 
                 ctime = time(NULL);
@@ -7240,6 +7403,44 @@ START_INSTRUCTION(DMOD_REG_REG_REG) CALC_DISPATCH(3)
     DEBUG("TRACE - RXVERS R%d\n", (int) REG_IDX(1));
     {
         char vers[64];
+#ifdef __CMS__
+        /* Use the same technique as rxvmin2.c:compile_date, but building it
+         * at run time because CMS's GCC doesn't allow "__DATE__[n]" in an
+         * initializer.
+         */
+        /* Get create the compile time data in ta "iso" like format */
+        /* __DATE__ format "Mmm dd yyyy" -> Convert to yyyymmdd */
+        const char _date[11] = "__DATE__";
+        char compile_date[8+1];
+
+        sprintf(compile_date, "%s%s%s%s%s%s%s%s",
+                /* yyyy year */
+                _date[7], _date[8],
+                _date[9], _date[10],
+
+                /* First month letter, Oct Nov Dec = '1' otherwise '0' */
+                (_date[0] == 'O' || _date[0] == 'N' || _date[0] == 'D') ? '1' : '0',
+
+                /* Second month letter */
+                (_date[0] == 'J') ? ( (_date[1] == 'a') ? '1' :       /* Jan, Jun or Jul */
+                                         ((_date[2] == 'n') ? '6' : '7') ) :
+                (_date[0] == 'F') ? '2' :                                /* Feb */
+                (_date[0] == 'M') ? (_date[2] == 'r') ? '3' : '5' :   /* Mar or May */
+                (_date[0] == 'A') ? (_date[1] == 'p') ? '4' : '8' :   /* Apr or Aug */
+                (_date[0] == 'S') ? '9' :                                /* Sep */
+                (_date[0] == 'O') ? '0' :                                /* Oct */
+                (_date[0] == 'N') ? '1' :                                /* Nov */
+                (_date[0] == 'D') ? '2' :                                /* Dec */
+                0,
+
+                /* First day letter, replace space with digit */
+                _date[4]==' ' ? '0' : _date[4],
+
+                /* Second day letter */
+                _date[5],
+
+                '\0');
+#endif
 
 #if defined(__linux__)
         strcpy(vers, "linux ");
@@ -7292,7 +7493,7 @@ START_INSTRUCTION(DMOD_REG_REG_REG) CALC_DISPATCH(3)
         }
         hash ^= (hash >> 16);
 #ifdef __32BIT__
-        hash = hash & 0x7FFFFFFF
+        hash = hash & 0x7FFFFFFF;
 #else
         hash = hash & 0x7FFFFFFFFFFFFFFF;
 #endif
@@ -7342,7 +7543,7 @@ START_INSTRUCTION(OPENDLL_REG_REG_REG) CALC_DISPATCH(3)
     null_terminate_string_buffer(op2R);
     null_terminate_string_buffer(op3R);
     printf("Module %s\n",op3R->string_value);
-    
+
     /* Open the shared object */
     dl_handle = dlopen( op2R->string_value, RTLD_LAZY );
     if (dl_handle) i1=-8;
@@ -7499,6 +7700,7 @@ START_INSTRUCTION(OPENDLL_REG_REG_REG) CALC_DISPATCH(3)
                 /* Otherwise we open the file normally */
                 op1R->int_value = (rxinteger)fopen(filename, mode);
 
+#ifndef __CMS__
                 /* If the open succeeds, add the FD_CLOEXEC so that the file is not available to an ADDRESSed command! */
                 if (op1R->int_value) {
 #ifdef _WIN32
@@ -7514,6 +7716,7 @@ START_INSTRUCTION(OPENDLL_REG_REG_REG) CALC_DISPATCH(3)
                     fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
                 }
+#endif
             }
             free(filename);
             free(mode);
@@ -7634,7 +7837,7 @@ START_INSTRUCTION(OPENDLL_REG_REG_REG) CALC_DISPATCH(3)
             op1R->int_value = codepoint;
             op1R->string_char_pos = 0;
             op1R->string_chars = 1;
-#elif
+#else
             prep_string_buffer(op1R, 1);
             op1R->int_value = (unsigned char)fgetc( (FILE*)op2R->int_value );
             op1R->string_value[0] = op1R->int_value;
@@ -7673,7 +7876,7 @@ START_INSTRUCTION(OPENDLL_REG_REG_REG) CALC_DISPATCH(3)
 
             end_of_codepoint = utf8catcodepoint(codepoint, op2R->int_value, 4);
             length_of_codepoint = end_of_codepoint - codepoint;
-#elif
+#else
             length_of_codepoint = 1;
             codepoint[0] = op2R->int_value;
 #endif
@@ -8270,3 +8473,4 @@ START_INSTRUCTION(OPENDLL_REG_REG_REG) CALC_DISPATCH(3)
 
     return rc;
 }
+#endif

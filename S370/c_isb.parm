@@ -1,0 +1,1 @@
+-O1 -S -DNDEBUG -D__CMS__ -o dd:out - -DNTHREADED=1

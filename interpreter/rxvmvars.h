@@ -29,6 +29,12 @@
 #ifndef CREXX_RXVMVARS_H
 #define CREXX_RXVMVARS_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 20
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #ifndef NUTF8
 #include "utf.h"
 #endif
@@ -1488,7 +1494,11 @@ static void extract_double_decimal(numeric_context* num_context, value *coeffici
     double abs_value = fabs(value);
 
     // Calculate decimal exponent
+#ifdef __32BIT__
+    int32_t exp = (int32_t)floor(log10(abs_value));
+#else
     int64_t exp = (int64_t)floor(log10(abs_value));
+#endif
 
     // Normalize the coefficient to [1.0, 10.0)
     double coeff = abs_value / pow(10.0, (double)exp);
@@ -1548,10 +1558,18 @@ static size_t number_of_digits(rxinteger n) {
     size_t digits = 0;
 
     // By using an unsigned type, we can safely represent the absolute value
+#ifdef __32BIT__
+    unsigned long num;
+#else
     unsigned long long num;
+#endif
 
     if (n < 0) {
+#ifdef __32BIT__
+        num = -(unsigned long)n;
+#else
         num = -(unsigned long long)n;
+#endif
         digits = 1; // For the negative sign
     } else {
         num = n;
