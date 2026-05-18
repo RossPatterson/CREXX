@@ -25,6 +25,12 @@
 #ifndef CREXX_RXVML_H
 #define CREXX_RXVML_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 18
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include <stddef.h>
 #include "rxvalue.h"
 

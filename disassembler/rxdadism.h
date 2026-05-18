@@ -25,6 +25,12 @@
 #ifndef CREXX_RXDADISM_H
 #define CREXX_RXDADISM_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 14
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "rxas.h"
 #include "rxbin.h"
 

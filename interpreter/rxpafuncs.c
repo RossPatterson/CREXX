@@ -25,6 +25,13 @@
 //
 // RXPA (CREXX Plugin Architecture) support functions
 //
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 27
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
+#include "platform.h"
 #include "crexxpa.h"
 #include "rxvmintp.h"
 #include "rxvmvars.h"

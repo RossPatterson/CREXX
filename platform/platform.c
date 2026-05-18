@@ -52,6 +52,7 @@
 
 #include "platform.h"
 
+#ifndef __CMS__
 /*
  * Read a file into a returned buffer
  *
@@ -87,6 +88,7 @@ char* file2buf(FILE *file, size_t *bytes) {
     buff[*bytes+1] = 0; /* Add an extra byte for the token peak */
     return buff;
 }
+#endif
 
 #include <ctype.h>
 
@@ -243,6 +245,7 @@ int fileexists(char *name, char *type, char *dir) {
     return result;
 }
 
+#ifndef __CMS__
 /*
  * Function opens and returns a file handle
  * dir can be null, and can contain multiple directories separated by ;
@@ -295,6 +298,7 @@ FILE *openfile(char *name, char *type, char *dir, char *mode) {
 
     return stream;
 }
+#endif
 
 #if defined(__APPLE__) || defined(__linux__)
 struct fl_dir {

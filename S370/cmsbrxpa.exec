@@ -1,0 +1,20 @@
+* Perform a CMS370 CREXX build of the plugin architecture
+&ERROR &EXIT &RETCODE
+
+&DEBUG = &1
+&SRCDISK = &2
+&BINDISK = &3
+&PARMFN = CREXX&DEBUG
+
+* TODO
+*EXEC CRXGCC RXPA     C &SRCDISK ( CMS PARM &PARMFN CSECT
+*   <stdin>:34:32: dlfcn.h: An error has occurred
+*
+*   <stdin>: In function `_FN0373:
+*   <stdin>:137: `RTLD_LAZY undeclared (first use in this function)
+*   <stdin>:137: (Each undeclared identifier is reported only once
+*   <stdin>:137: for each function it appears in.)
+*   <stdin>:137: warning: initialization makes pointer from integer without a cast
+*   return code 12 from EXEC CRXGCC of RXPA
+
+&EXIT 0

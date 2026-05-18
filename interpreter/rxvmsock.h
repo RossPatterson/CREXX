@@ -25,6 +25,12 @@
 #ifndef CREXX_RXVMSOCK_H
 #define CREXX_RXVMSOCK_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 19
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "rxvalue.h"
 
 struct rxvm_context;

@@ -25,6 +25,12 @@
 #ifndef CREXX_RXVMINTP_H
 #define CREXX_RXVMINTP_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 17
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #include "rxas.h"
 #include "rxbin.h"
 #include "rxpa.h"

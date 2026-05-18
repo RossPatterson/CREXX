@@ -28,7 +28,13 @@
 
 #ifndef CREXX_RXVMPLUGIN_FRAMEWORK_H
 #define CREXX_RXVMPLUGIN_FRAMEWORK_H
-#include "rxvmplugin.h"
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 28
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
+#include "rxpl.h"
 
 // Structure to hold the rxvm plugins
 typedef struct rxvmplugin_factory_entry rxvmplugin_factory_entry;

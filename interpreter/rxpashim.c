@@ -22,6 +22,12 @@
  * SOFTWARE.
  */
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 23
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 /* RXPA Shim Layer - provides global rxpa_ names for standalone VM */
 #include "rxpa.h"
 

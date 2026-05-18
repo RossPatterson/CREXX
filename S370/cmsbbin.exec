@@ -1,0 +1,14 @@
+* Perform a CMS370 CREXX build of the binary library(?)
+&ERROR &EXIT &RETCODE
+
+&DEBUG = &1
+&SRCDISK = &2
+&BINDISK = &3
+&PARMFN = CREXX&DEBUG
+
+RXC -i "./bin; ./lib/plugins/system" -o ./crexx CREXX
+RXAS CREXX
+RXLINK -s -o CREXX_LINKED crexx ./bin/library
+RXCPACK -o CREXX CREXX_LINKED
+
+&EXIT 0

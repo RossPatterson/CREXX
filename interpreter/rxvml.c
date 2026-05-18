@@ -26,12 +26,13 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include "platform.h"
 #include "rxvml.h"
 #include "rxvmintp.h"
 #include "rxvm.h"
 #include "rxvmvars.h"
 #include "rxastree.h"
-#include "rxvmplugin.h"
+#include "rxpl.h"
 
 typedef struct rxvml_registry_entry {
     value* obj;
@@ -1336,7 +1337,7 @@ int rxvml_discover_classes(rxvml_context* ctx, const char* ns, rxvml_class_info*
                 if (c->type == META_CLASS) {
                     meta_class_constant* mc = (meta_class_constant*)c;
                     string_constant* sc = (string_constant*)(mod->segment.const_pool + mc->symbol);
-                    
+
                     if (strncmp(sc->string, ns, ns_len) == 0 && sc->string[ns_len] == '.') {
                         if (count >= capacity) {
                             capacity *= 2;
@@ -1344,11 +1345,11 @@ int rxvml_discover_classes(rxvml_context* ctx, const char* ns, rxvml_class_info*
                         }
                         strncpy(classes[count].class_name, sc->string, 255);
                         classes[count].class_name[255] = 0;
-                        
+
                         /* Factory name pattern: namespace.classname.§factory */
                         snprintf(classes[count].factory_proc, 511, "%s.§factory", sc->string);
                         classes[count].factory_proc[511] = 0;
-                        
+
                         count++;
                     }
                 }

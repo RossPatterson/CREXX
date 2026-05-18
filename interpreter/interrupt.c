@@ -91,6 +91,8 @@
     #define SIGUSR2 -1 /* Not applicable */
     #define SIGCHLD -1 /* Not applicable */
     #define MAX_OS_SIGNALS 32 /* Max OS signal number we might store */
+#elif defined(__CMS__)
+    #define MAX_OS_SIGNALS 32 /* Max OS signal number we might store */
 #else
     #include <unistd.h>  /* POSIX specifics */
     /* Define MAX_OS_SIGNALS for POSIX based on common values like NSIG */
@@ -101,12 +103,14 @@
 /* --- Global Variables --- */
 
 /* Storage for original signal dispositions */
+#ifndef __CMS__
 #ifdef _WIN32
     /* Type for the signal handler function */
     typedef void (*OsSignalHandlerFunc)(int);
     static OsSignalHandlerFunc g_original_os_handlers[MAX_OS_SIGNALS];
 #else
     static struct sigaction g_original_os_actions[MAX_OS_SIGNALS];
+#endif
 #endif
 
 /* Tracks which VM signals have our handler active (indexed by RXSIGNAL_* code) */
@@ -127,6 +131,9 @@ static const VmOsSignalMap g_signal_map[] = {
     /* Termination / User Interaction */
     { RXSIGNAL_TERM,               SIGTERM },
 #ifndef _WIN32
+#ifdef __CMS__
+    { RXSIGNAL_POSIX_INT,          SIGINT  },
+#else
     /* POSIX-specific Signals Mappings */
     { RXSIGNAL_POSIX_INT,          SIGINT  },
     { RXSIGNAL_QUIT,               SIGQUIT },
@@ -135,6 +142,7 @@ static const VmOsSignalMap g_signal_map[] = {
     { RXSIGNAL_POSIX_USR2,         SIGUSR2 },
     { RXSIGNAL_POSIX_CHLD,         SIGCHLD },
     { RXSIGNAL_NOTREADY,           SIGPIPE }, /* Often related to broken pipes */
+#endif
 #else
     /* Windows-specific Signal Mappings */
     { RXSIGNAL_TERM,          CTRL_CLOSE_EVENT  },
@@ -213,10 +221,12 @@ static void vm_master_signal_handler(int signum /* OS Signal Number */) {
  */
 int enable_interrupt(int vm_signal) {
     int os_signal;
+#ifndef __CMS__
 #ifndef _WIN32
     struct sigaction sa_new; /* POSIX */
 #else
     int handler_installed; /* Windows */
+#endif
 #endif
 
     /* Validate VM signal code */
@@ -238,7 +248,7 @@ int enable_interrupt(int vm_signal) {
     }
 
     /* Register the handler */
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__CMS__)
     /* --- POSIX: Use sigaction --- */
     struct sigaction sa_old;
 
@@ -284,7 +294,7 @@ int enable_interrupt(int vm_signal) {
  */
 int ignore_interrupt(int vm_signal) {
    int os_signal;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__CMS__)
     struct sigaction sa_new; /* POSIX */
 #endif
 
@@ -307,7 +317,7 @@ int ignore_interrupt(int vm_signal) {
     }
 
     /* Register the handler */
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__CMS__)
     /* --- POSIX: Use sigaction --- */
     struct sigaction sa_old;
 
@@ -374,7 +384,7 @@ int restore_interrupt(int vm_signal) {
     }
 
     /* Restore original handler */
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__CMS__)
     /* --- POSIX: Restore original action --- */
     if (sigaction(os_signal, &g_original_os_actions[os_signal], NULL) == -1) {
         /* perror("Error: sigaction disable failed"); */
@@ -405,7 +415,7 @@ int initialize_vm_signals(void) {
     for (i = 0; i < MAX_OS_SIGNALS; ++i) {
 #ifdef _WIN32
         g_original_os_handlers[i] = NULL;
-#else
+#elif !defined(__CMS__)
         memset(&g_original_os_actions[i], 0, sizeof(struct sigaction));
 #endif
     }

@@ -579,7 +579,7 @@ Symbol *sym_rvfn(ASTNode *root, char* name) {
 }
 
 /* Resolve a Function Symbol recursively through child namespaces */
-Symbol *sym_rvfn_deep(ASTNode *root, char* name) {
+static Symbol *sym_rvfn_deep(ASTNode *root, char* name) {
     Symbol *result;
     size_t i, j;
     Scope *s, *ns;

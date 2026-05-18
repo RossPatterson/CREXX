@@ -1,0 +1,15 @@
+* Perform a CMS370 CREXX build of the platform support
+&ERROR &EXIT &RETCODE
+
+&DEBUG = &1
+&SRCDISK = &2
+&BINDISK = &3
+&PARMFN = CREXX&DEBUG
+
+* platform/CMakeLists.txt
+EXEC CRXGCC PLATFORM C SourceDisk ( CMS PARM &PARMFN CSECT
+
+TXTLIB GEN PLATFORM PLATFORM
+ERASE * TEXT A
+
+&EXIT 0

@@ -29,6 +29,91 @@
 #ifndef CREXX_RXVMVARS_H
 #define CREXX_RXVMVARS_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 20
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
+#ifndef __SPLIT_RXVMVARS__
+  /* Values: 0=not split; 1=compiling rxvmvars.c; 2=compiling whatever.c */
+#  ifdef __CMS__
+#    define __SPLIT_RXVMVARS__ 2
+#  else
+#    define __SPLIT_RXVMVARS__ 0
+#  endif
+#endif
+
+#if __SPLIT_RXVMVARS__ > 0
+#  undef RX_INLINE
+#  undef RX_MOSTLYINLINE
+#  define RX_INLINE
+#  define RX_MOSTLYINLINE
+#  define MAYBE_STATIC
+#else
+#  define MAYBE_STATIC static
+#endif
+
+#if __SPLIT_RXVMVARS__ == 2
+  RX_INLINE void clear_binary_payload(value *v);
+  RX_INLINE void value_zero(value *v);
+  RX_INLINE void value_init(value *v);
+  RX_INLINE value* value_f();
+  RX_INLINE size_t power_of_two_size(size_t value);
+  RX_INLINE void set_num_attributes(value* v, size_t num);
+  RX_INLINE size_t buffer_size(size_t value);
+  RX_INLINE void prep_string_buffer(value *v, size_t length);
+  RX_INLINE void extend_string_buffer(value *v, size_t length);
+  RX_INLINE void null_terminate_string_buffer(value *v);
+  RX_MOSTLYINLINE void clear_value(value* v);
+  RX_INLINE void set_int(value *v, rxinteger value);
+  RX_INLINE void set_float(value *v, double value);
+  RX_INLINE void set_string(value *v, char *value, size_t length);
+  RX_INLINE void set_null_string(value *v, const char *from);
+  RX_INLINE void set_const_string(value *v, string_constant *from);
+  RX_INLINE void set_value_string(value *v, value *from);
+  RX_INLINE void set_buffer_string(
+        value *v,
+        char *buffer,
+        size_t length,
+        size_t buffer_length
+        , size_t string_chars
+);
+  RX_INLINE int set_native_payload(value *v,
+                                 const void *payload,
+                                 size_t length,
+                                 const rxvm_native_payload_ops *ops,
+                                 unsigned int flags);
+  RX_INLINE void* get_native_payload(value *v,
+                                   size_t *out_length,
+                                   const rxvm_native_payload_ops **out_ops,
+                                   unsigned int *out_flags);
+  RX_MOSTLYINLINE void copy_value(value *dest, value *source);
+  RX_INLINE void move_value(value *dest, value *source);
+  RX_INLINE void copy_string_value(value *dest, value *source);
+  RX_INLINE int string_cmp(char *value1, size_t length1, char *value2, size_t length2);
+  RX_INLINE int string_cmp_value(value *v1, value *v2);
+  RX_INLINE int string_cmp_const(value *v1, string_constant *v2);
+  RX_INLINE void string_append(value *v1, value *v2);
+  RX_INLINE void string_append_chars(value *v1, char *value, size_t length);
+  RX_INLINE void string_sappend(value *v1, value *v2);
+  RX_INLINE void string_concat(value *v1, value *v2, value *v3);
+  RX_INLINE void string_sconcat(value *v1, value *v2, value *v3);
+  RX_INLINE void string_concat_var_const(value *v1, value *v2, string_constant *v3);
+  RX_INLINE void string_sconcat_var_const(value *v1, value *v2, string_constant *v3);
+  RX_INLINE void string_concat_const_var(value *v1, string_constant *v2, value *v3);
+  RX_INLINE void string_sconcat_const_var(value *v1, string_constant *v2, value *v3);
+  RX_INLINE void string_concat_char(value *v1, value *v2);
+  RX_INLINE void int_to_string(numeric_context *cnt, value *temp, value *v);
+  RX_INLINE void float_to_string(numeric_context *cnt, value *temp, value *v);
+  RX_INLINE void int_from_float(value *v);
+  RX_INLINE char* reg2nullstring(value* reg);
+  RX_INLINE int string2integer(rxinteger *out, char *string, size_t length);
+  RX_INLINE int string2float(double *out, char *string, size_t length);
+  RX_INLINE int stringtodecimal(char **out, char *string, size_t length);
+
+#else
+
 #ifndef NUTF8
 #include "utf.h"
 #endif
@@ -38,14 +123,16 @@
 #include <math.h>
 #include <ctype.h>
 #include <errno.h>
-#include <float.h>
 #include <string.h>
+#endif /* __SPLIT_RXVMVARS__ */
+#include <float.h>
 
 /* Forward declarations */
-static void extract_double_decimal(numeric_context* num_context, value *coefficient, value *exponent, double value);
-static void extract_integer_decimal(numeric_context* num_context, value *coefficient, value *exponent, rxinteger value);
-static void RexxDecimalFormat(numeric_context* num_context, value *coefficient_value, value *exponent_value, value *formatted_output_value);
+MAYBE_STATIC void extract_double_decimal(numeric_context* num_context, value *coefficient, value *exponent, double value);
+MAYBE_STATIC void extract_integer_decimal(numeric_context* num_context, value *coefficient, value *exponent, rxinteger value);
+MAYBE_STATIC void RexxDecimalFormat(numeric_context* num_context, value *coefficient_value, value *exponent_value, value *formatted_output_value);
 
+#if (__SPLIT_RXVMVARS__ == 0) || (__SPLIT_RXVMVARS__ == 1)
 /* Clears the binary payload and runs native cleanup if the payload owns native resources. */
 RX_INLINE void clear_binary_payload(value *v) {
     if (!v) return;
@@ -1404,8 +1491,9 @@ RX_INLINE int stringtodecimal(char **out, char *string, size_t length) {
     return 1; // Error
 }
 
+#endif /* (__SPLIT_RXVMVARS__ == 0) || (__SPLIT_RXVMVARS__ == 1) */
 // Static function to trim trailing zeros from a number format and including possibly the decimal point
-static void trim_numeric_trailing_zeros(char *str) {
+MAYBE_STATIC void trim_numeric_trailing_zeros(char *str) {
     size_t len = strlen(str);
     if (len == 0)
         return;
@@ -1433,7 +1521,7 @@ static void trim_numeric_trailing_zeros(char *str) {
 // Function to extract decimal components from a double
 // - coefficient (string) will be set to the coefficient string (or nan, inf, -inf)
 // - exponent (integer) will be set to the exponent
-static void extract_double_decimal(numeric_context* num_context, value *coefficient, value *exponent, double value) {
+MAYBE_STATIC void extract_double_decimal(numeric_context* num_context, value *coefficient, value *exponent, double value) {
 
     size_t digits = num_context->digits;
     if (digits < DIGITS_MINIMUM) digits = DIGITS_MINIMUM;
@@ -1488,7 +1576,11 @@ static void extract_double_decimal(numeric_context* num_context, value *coeffici
     double abs_value = fabs(value);
 
     // Calculate decimal exponent
+#ifdef __32BIT__
+    int32_t exp = (int32_t)floor(log10(abs_value));
+#else
     int64_t exp = (int64_t)floor(log10(abs_value));
+#endif
 
     // Normalize the coefficient to [1.0, 10.0)
     double coeff = abs_value / pow(10.0, (double)exp);
@@ -1541,17 +1633,25 @@ static void extract_double_decimal(numeric_context* num_context, value *coeffici
 }
 
 /* Calculate the number of digits in an integer, including the sign if negative */
-static size_t number_of_digits(rxinteger n) {
+MAYBE_STATIC size_t number_of_digits(rxinteger n) {
     if (n == 0) {
         return 1;
     }
     size_t digits = 0;
 
     // By using an unsigned type, we can safely represent the absolute value
+#ifdef __32BIT__
+    unsigned long num;
+#else
     unsigned long long num;
+#endif
 
     if (n < 0) {
+#ifdef __32BIT__
+        num = -(unsigned long)n;
+#else
         num = -(unsigned long long)n;
+#endif
         digits = 1; // For the negative sign
     } else {
         num = n;
@@ -1581,7 +1681,7 @@ static size_t number_of_digits(rxinteger n) {
  *
  * The function handles special cases like zero, NaN, and infinity.
  */
-static void RexxDecimalFormat(numeric_context* num_context, value *coefficient_value, value *exponent_value, value *formatted_output_value) {
+MAYBE_STATIC void RexxDecimalFormat(numeric_context* num_context, value *coefficient_value, value *exponent_value, value *formatted_output_value) {
 
     const char *coef_start;
     size_t digits_in_coef;
@@ -1797,7 +1897,7 @@ static void RexxDecimalFormat(numeric_context* num_context, value *coefficient_v
 // Function to extract decimal components from an integer
 // - coefficient (string) will be set to the coefficient string (or nan, inf, -inf)
 // - exponent (integer) will be set to the exponent
-static void extract_integer_decimal(numeric_context* num_context, value *coefficient, value *exponent, rxinteger value) {
+MAYBE_STATIC void extract_integer_decimal(numeric_context* num_context, value *coefficient, value *exponent, rxinteger value) {
 
     // Handle special case of zero
     if (value == 0) {

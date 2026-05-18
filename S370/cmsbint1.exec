@@ -1,0 +1,67 @@
+* Perform a CMS370 CREXX build of the interpreter, part 1
+&ERROR &EXIT &RETCODE
+
+&DEBUG = &1
+&SRCDISK = &2
+&BINDISK = &3
+&PARMFN = CREXX&DEBUG
+
+* TODO - What do we do about these?
+*  set(CMAKE_C_STANDARD 99) # enables inline keyword
+*  set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG") # Can do more I am sure but this is about as good as it get in practice
+*  set(CREXX_DEFAULT_TLS_BACKEND OPENSSL)
+
+* RXPA Shim Library - Provides standard rxpa_ symbols for standalone targets
+&PARMFN = CREXX&DEBUG
+EXEC CRXGCC RXPASHIM C &SRCDISK ( CMS PARM &PARMFN CSECT
+
+* Packed Library
+* TODO
+* RXCPACK -o library bin/library
+*   Theres no bin/ on CMS.
+* EXEC CRXGCC LIBRARY  C A ( CMS PARM &PARMFN CSECT
+*   Source file LIBRARY C A not found.
+
+
+* Bare Interpreter - Bytecode Version
+&PARMFN = C_IBB&DEBUG
+EXEC CRXGCC RXVML    C &SRCDISK ( CMS PARM &PARMFN CSECT
+EXEC CRXGCC RXVMLIB  C &SRCDISK ( CMS PARM &PARMFN CSECT
+EXEC CRXGCC RXVMMAIN C &SRCDISK ( CMS PARM &PARMFN CSECT
+EXEC CRXGCC RXVMIN1  C &SRCDISK ( CMS PARM &PARMFN CSECT
+* TODO
+* EXEC* CRXGCC RXVMIN2  C &SRCDISK ( CMS PARM &PARMFN CSECT
+*   In file included from rxvmintp.c:81,
+*                    from <stdin>:6:
+*   cmstime.h:1:2: #error This header does not exist in CMS
+*   DMSSMN109S VIRTUAL STORAGE CAPACITY EXCEEDED, 00010008 BYTES REQUESTED.
+*   DMSABN148T SYSTEM ABEND 80A CALLED FROM F929B2.
+
+EXEC CRXGCC RXVMLOAD C &SRCDISK ( CMS PARM &PARMFN CSECT
+EXEC CRXGCC INTERRUP C &SRCDISK ( CMS PARM &PARMFN CSECT
+* No RXSPAWN in CMS.
+* EXEC CRXGCC RXSPAWN  C &SRCDISK ( CMS PARM &PARMFN CSECT
+
+EXEC CRXGCC EXITFUNC C &SRCDISK ( CMS PARM &PARMFN CSECT
+EXEC CRXGCC RXPAFUNC C &SRCDISK ( CMS PARM &PARMFN CSECT
+* TODO
+*   In file included from rxvmintp.h:30,
+*                    from <stdin>:36:
+*   cmsfns.h:308:1: warning: "rxvm_getsignaltext" redefined
+*   In file included from <stdin>:30:
+*   cmsfns.h:628:1: warning: this is the location of the previous definition
+*   In file included from rxvmintp.h:30,
+*                    from <stdin>:36:
+*   cmsfns.h:309:1: warning: "rxvm_getsignalcode" redefined
+*   In file included from <stdin>:30:
+*   cmsfns.h:629:1: warning: this is the location of the previous definition
+*   In file included from rxvmintp.h:30,
+*                    from <stdin>:36:
+*   cmsfns.h:314:1: warning: "rxvm_callfunc" redefined
+*   In file included from <stdin>:30:
+*   cmsfns.h:627:1: warning: this is the location of the previous definition
+*   return code 4 from EXEC CRXGCC of RXPAFUNC
+
+EXEC CRXGCC RXVMRUN  C &SRCDISK ( CMS PARM &PARMFN CSECT
+TXTLIB GEN RXBVML RXVMMAIN RXVMLIB RXVML    RXVMIN1  RXVMIN2  RXVMLOAD INTERRUP RXSPAWN  EXITFUNC RXPAFUNC RXVMRUN
+&EXIT 0

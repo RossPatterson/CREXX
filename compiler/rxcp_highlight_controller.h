@@ -27,6 +27,12 @@
 #ifndef CREXX_RXCP_HIGHLIGHT_CONTROLLER_H
 #define CREXX_RXCP_HIGHLIGHT_CONTROLLER_H
 
+#ifdef __CMS__
+#   define __CMSFNS_HDR__ 9
+#   include "cmsfns.h"
+#   undef __CMSFNS_HDR__
+#endif
+
 #ifndef restrict
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 /* restrict is a keyword */

@@ -1,0 +1,249 @@
+*  Use GCC to compile the CREXX system.
+&CONTROL OFF NOMSG
+&FT = C
+&FM = A
+&ASM = YES
+&ASMNAME = ASMAHL
+&CSECT = NO
+&KEEP = NO
+&LIB = PDPCLIB
+&PARM = GCC
+&CPP = NO
+
+* Ensure the reader is safe to use.
+EXECUTIL QREADER CLASS Z FIRST
+&IF &RETCODE NE 0 &SKIP 3
+   &READ VARS &X
+   &TYPE &0 requires there are no CLASS Z READER files.
+   &EXIT 1
+
+* Verify we have a file to compile.  First get the filename.
+&FN = &1
+&ARGS &2 &3 &4 &5 &6 &7 &8 &9 &10 &11 &12 &13 &14 &15 &16 &17 &18 &19 &20
+
+* Now get the filetype.
+&IF &INDEX = 0 &GOTO -Compile
+&IF &1 = ( &GOTO -Parms
+&FT = &1
+&ARGS &2 &3 &4 &5 &6 &7 &8 &9 &10 &11 &12 &13 &14 &15 &16 &17 &18 &19 &20
+
+* And now the filemode.
+&IF &INDEX = 0 &GOTO -Compile
+&IF &1 = ( &GOTO -Parms
+&FM = &1
+&ARGS &2 &3 &4 &5 &6 &7 &8 &9 &10 &11 &12 &13 &14 &15 &16 &17 &18 &19 &20
+
+* Loop to check the options
+-Parms
+&IF &INDEX = 0 &GOTO -Compile
+&IF &1 NE ( &GOTO -BadArgs
+&LOOP -EndLoop &INDEX
+   &ARGS &2 &3 &4 &5 &6 &7 &8 &9 &10 &11 &12 &13 &14 &15 &16 &17 &18 &19 &20
+   &IF &INDEX = 0 &GOTO -Compile
+   * ASM option
+   &IF &1 NE ASM &GOTO -NxtOp1
+   &ASM = YES
+   &GOTO -EndLoop
+   -NxtOp1
+   * CMS option
+   &IF &1 NE CMS &GOTO -NxtOp2
+   &LIB = GCCLIB
+   &GOTO -EndLoop
+   -NxtOp2
+   * CSECT option
+   &IF &1 NE CSECT &GOTO -NxtOp3
+   &CSECT = YES
+   &GOTO -EndLoop
+   -NxtOp3
+   * KEEP option
+   &IF &1 NE KEEP &GOTO -NxtOp4
+   &KEEP = YES
+   &GOTO -EndLoop
+   -NxtOp4
+   * LIB option
+   &IF &1 NE LIB &GOTO -NxtOp5
+   &IF &INDEX = 1 &GOTO -NoLib
+   &LIB = &2
+   &ARGS &2 &3 &4 &5 &6 &7 &8 &9 &10 &11 &12 &13 &14 &15 &16 &17 &18 &19 &20
+   &GOTO -EndLoop
+   -NxtOp5
+   * NOASM option
+   &IF &1 NE NOASM &GOTO -NxtOp6
+   &ASM = NO
+   &GOTO -EndLoop
+   -NxtOp6
+   * NOCSECT option
+   &IF &1 NE NOCSECT &GOTO -NxtOp7
+   &CSECT = NO
+   &GOTO -EndLoop
+   -NxtOp7
+   * NOKEEP option
+   &IF &1 NE NOKEEP &GOTO -NxtOp8
+   &KEEP = NO
+   &GOTO -EndLoop
+   -NxtOp8
+   * OS option
+   &IF &1 NE OS &GOTO -NxtOp9
+   &LIB = PDPCLIB
+   &GOTO -EndLoop
+   -NxtOp9
+   * PARM option
+   &IF &1 NE PARM &GOTO -NxtOp10
+   &IF &INDEX = 1 &GOTO -NoParm
+   &PARM = &2
+   &ARGS &2 &3 &4 &5 &6 &7 &8 &9 &10 &11 &12 &13 &14 &15 &16 &17 &18 &19 &20
+   &GOTO -EndLoop
+   -NxtOp10
+   * CPP option
+   &IF &1 NE CPP &SKIP 2
+       &CPP = YES
+       &GOTO -EndLoop
+   * NOCPP option
+   &IF &1 NE NOCPP &SKIP 2
+      &CPP = NO
+      &GOTO -EndLoop
+   &GOTO -BadOpt
+   -EndLoop
+
+* Prepare to compile the program.
+-Compile
+STATE &FN &FT &FM
+&IF &RETCODE NE 0 &GOTO -NoFile
+
+* Get a read/write work disk
+EXECUTIL QDISK &FM
+&READ VARS &X &X &X &X &X &X &RORW
+&WORKFM = &FM
+&IF &RORW = R/O &WORKFM = A
+
+* Access the disk containing the include (H) files.
+* OK, I know this is ugly, but what other choice have we?
+* Well, some day it would be great to put include files in a MACLIB...
+EXECUTIL FREEADDR 19E
+&IF &RETCODE NE 0 &GOTO -BadEU
+&READ VARS &VADDR
+EXECUTIL FREEMODE S
+&IF &RETCODE NE 0 &GOTO -BadEU
+&READ VARS &LETTER
+&IF &LIB = PDPCLIB CP DISCARD LINK GCCCMS 201 &VADDR RR
+&IF &LIB = GCCLIB  CP DISCARD LINK GCCCMS 202 &VADDR RR
+&STACK HT
+ACCESS &VADDR &LETTER
+&STACK RT
+
+QUERY MACLIB (LIFO
+&READ VARS &X &X &LIB1 &LIB2 &LIB3 &LIB4 &LIB5 &LIB6 &LIB7 &LIB8
+GLOBAL MACLIB &LIB DMSGPI CMSHRC CMSLIB OSMACRO TSOMAC
+&IF &RETCODE > 0 &GOTO -BadLib
+
+&IF &CPP = NO &SKIP 5
+   EXECUTIL QFILE &PARM PARM * ( FIRST EXT
+   &READ VARS &PFN &X &PFM
+   &PARM = CMSUT1
+   &STACK LIFO /-E/ 1 1-99999 4
+   COPYFILE &PFN PARM &PFM &PARM = &WORKFM (REPL SPECS NOPROMPT
+ERASE &FN WORK &WORKFM
+CP SPOOL PUNCH TO * CLASS Z
+FILEDEF SYSPRINT TERM (LRECL 80
+FILEDEF SYSPARM DISK &PARM PARM *
+FILEDEF OUT PUNCH (LRECL 80 BLKSIZE 80 RECFM V
+FILEDEF SYSIN DISK &FN &FT &FM
+CHECK380
+&IF &RETCODE = 380 &SKIP 2
+   &TYPE CREXX requires GCC380
+   &EXIT 1
+
+* At last we compile the program.
+GCC380
+&GCCRC = &RETCODE
+FILEDEF SYSPRINT CLEAR
+FILEDEF SYSPARM CLEAR
+FILEDEF OUT CLEAR
+FILEDEF SYSIN CLEAR
+CP SPOOL PUNCH CLOSE
+&IF &GCCRC > 0 &TYPE Return code &GCCRC from GCC of &FN
+&IF &CPP = NO &SKIP 2
+   COPYFILE &FN WORK &WORKFM = CPPOUT = ( REPLACE
+   ERASE CMSUT1 PARM &WORKFM
+&IF &GCCRC > 4 &GOTO -Done
+&IF &ASM = NO &GOTO -Done
+&TYPE Do something about CSECT name!
+
+&BEGTYPE
+We need something here like:
+CP SPOOL READER CLASS Z
+PIPE (end ?) reader | a: locate /         CSECT / 1 | spec /&name/ 1 10-* 10 | b: faninany | punch ? a: | b:
+&END
+&EXIT 1
+
+-Asm
+
+&IF &ASM = NO &GOTO -Done
+FILEDEF SYSTERM DISK &FN SYSTERM A
+CP SPOOL READER CLASS Z
+FILEDEF ASSEMBLE READER
+&ASMNAME &FN ( NOLIST NOPRINT
+&IF &RETCODE  > 0 &GOTO -BadAsm
+EXEC TXTDATE &FN TEXT A &FN C * &PARM PARM * ( MACLIB
+&IF &RETCODE  > 0 &GOTO -BadText
+
+* Our work here is done.
+&GCCRC = 0
+
+-Done
+&IF &LIB1 NE NONE GLOBAL MACLIB &LIB1 &LIB2 &LIB3 &LIB4 &LIB5 &LIB6 &LIB7 &LIB8
+RELEASE &LETTER
+CP DISCARD DETACH &VADDR
+ERASE &FN SYSTERM
+ERASE &FN WORK &WORKFM
+&IF &KEEP EQ YES &SKIP 2
+   ERASE &FN ASSEMBLE &WORKFM
+   ERASE &FN LISTING  &WORKFM
+&EXIT &GCCRC
+
+-BadArgs
+&TYPE Invalid args &1 &2 &3 &4 &5 &6 &7 &8 &9
+&EXIT 24
+
+-BadAsm
+&GCCRC = &RETCODE
+&TYPE Return code &GCCRC from &ASMNAME of &FN
+TYPE &FN SYSTERM A
+&GOTO -Done
+
+-BadText
+&GCCRC = &RETCODE
+&TYPE Return code &GCCRC from TXTDATE of &FN
+&GOTO -Done
+
+-BadCsct
+&GCCRC = &RETCODE
+&TYPE Error &GCCRC adding CSECT label.
+&GOTO -Done
+
+-BadEU
+&GCCRC = &RETCODE
+&TYPE Error &RETCODE from EXECUTIL
+&GOTO -Done
+
+-BadLib
+&TYPE Library &LIB MACLIB not found.
+&GCCRC = 24
+&GOTO -Done
+
+-BadOpt
+&TYPE Invalid option &1
+&EXIT 24
+
+-NoFile
+&TYPE Source file &FN &FT &FM not found.
+&EXIT 28
+
+-NoLib
+&TYPE Missing filename after 'LIB' option.
+&EXIT 24
+
+-NoParm
+&TYPE Missing filename after 'PARM' option.
+&EXIT 24
+
